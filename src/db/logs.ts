@@ -40,6 +40,14 @@ export function insertScrapeLog(entry: Omit<ScrapeLogEntry, 'id'>): number {
       entry.queriedAt
     );
 
+  if (entry.apiKeyId !== null && entry.status !== 'RateLimited') {
+    db.prepare(
+      `UPDATE api_keys
+       SET totalRequests = totalRequests + 1
+       WHERE id = ?`
+    ).run(entry.apiKeyId);
+  }
+
   // Keep SQLite compact by retaining the most recent 500 entries
   db.prepare(
     `DELETE FROM scrape_logs

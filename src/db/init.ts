@@ -11,6 +11,25 @@ function hashBootstrapPassword(password: string): string {
 export function initializeDatabase(database: Database.Database): void {
   database.exec(SCHEMA_SQL);
 
+  const apiKeyColumns = database
+    .prepare('PRAGMA table_info(api_keys)')
+    .all() as Array<{ name: string }>;
+
+  if (!apiKeyColumns.some((col) => col.name === 'totalRequests')) {
+    database.exec(
+      `ALTER TABLE api_keys ADD COLUMN totalRequests INTEGER NOT NULL DEFAULT 0;`
+    );
+    database.exec(
+      `UPDATE api_keys
+       SET totalRequests = (
+         SELECT COUNT(*)
+         FROM scrape_logs
+         WHERE scrape_logs.apiKeyId = api_keys.id
+           AND scrape_logs.status != 'RateLimited'
+       );`
+    );
+  }
+
   const existing = database
     .prepare('SELECT id FROM settings WHERE id = 1')
     .get() as { id: number } | undefined;

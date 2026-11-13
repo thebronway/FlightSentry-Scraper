@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { ApiKeysCard } from '@/components/ApiKeysCard';
+import { ApiUsageCard } from '@/components/ApiUsageCard';
 import { AuthGateScreen } from '@/components/AuthGateScreen';
 import { EngineStatusCard } from '@/components/EngineStatusCard';
 import { Footer } from '@/components/Footer';
@@ -11,6 +12,7 @@ import { Navbar } from '@/components/Navbar';
 import { ScrapeLogsCard } from '@/components/ScrapeLogsCard';
 import type {
   ApiKeyRecord,
+  OverallApiKeyUsage,
   PublicScraperSettings,
   ScrapeLogEntry,
   UsageQuotaStats,
@@ -22,6 +24,13 @@ export default function HomePage() {
   const [authenticated, setAuthenticated] = useState(false);
   const [settings, setSettings] = useState<PublicScraperSettings | null>(null);
   const [keys, setKeys] = useState<ApiKeyRecord[]>([]);
+  const [overallUsage, setOverallUsage] = useState<OverallApiKeyUsage>({
+    last1h: 0,
+    last24h: 0,
+    total: 0,
+    activeKeys: 0,
+    revokedKeys: 0,
+  });
   const [logs, setLogs] = useState<ScrapeLogEntry[]>([]);
   const [usage, setUsage] = useState<UsageQuotaStats>({
     hourlyUsed: 0,
@@ -53,6 +62,9 @@ export default function HomePage() {
     if (keysRes.ok) {
       const keysData = await keysRes.json();
       setKeys(keysData.keys);
+      if (keysData.overallUsage) {
+        setOverallUsage(keysData.overallUsage);
+      }
     }
     if (logsRes.ok) {
       const logsData = await logsRes.json();
@@ -148,13 +160,14 @@ export default function HomePage() {
             onSettingsUpdated={setSettings}
           />
 
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <ApiKeysCard keys={keys} onRefresh={refreshDashboardData} />
-            <GuardrailsSettingsCard
-              settings={settings}
-              onSettingsUpdated={setSettings}
-            />
-          </div>
+          <ApiUsageCard usage={overallUsage} />
+
+          <ApiKeysCard keys={keys} onRefresh={refreshDashboardData} />
+
+          <GuardrailsSettingsCard
+            settings={settings}
+            onSettingsUpdated={setSettings}
+          />
 
           <LiveTestScrapeCard onScrapeCompleted={refreshDashboardData} />
 

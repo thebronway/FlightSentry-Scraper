@@ -84,7 +84,7 @@ export function LiveTestScrapeCard({
               required
               value={origin}
               onChange={(e) => setOrigin(e.target.value.toUpperCase())}
-              placeholder="WAS"
+              placeholder="DCA"
               className="w-full px-2.5 py-1.5 rounded-lg bg-gunmetal-canvas border border-gunmetal-border text-slate-100 uppercase"
             />
           </div>
@@ -98,7 +98,7 @@ export function LiveTestScrapeCard({
               required
               value={destination}
               onChange={(e) => setDestination(e.target.value.toUpperCase())}
-              placeholder="SFO"
+              placeholder="LAX"
               className="w-full px-2.5 py-1.5 rounded-lg bg-gunmetal-canvas border border-gunmetal-border text-slate-100 uppercase"
             />
           </div>

@@ -4,36 +4,36 @@ import { useEffect, useState } from 'react';
 import { Info, RotateCcw, Save, Sliders } from 'lucide-react';
 import Tooltip from '@/components/common/Tooltip';
 import type { PublicScraperSettings } from '@/types';
-
-const DEFAULT_GUARDRAILS = {
-  minJitterMs: 4000,
-  maxJitterMs: 9000,
-  settleDelayMs: 2500,
-  maxRequestsPerHour: 20,
-  maxRequestsPerDay: 150,
-  cooldownMinutes: 60,
-} as const;
+import { AdminPasswordSection } from './guardrails/AdminPasswordSection';
+import { GuardrailLimitsGrid } from './guardrails/GuardrailLimitsGrid';
+import {
+  DEFAULT_GUARDRAILS,
+  type GuardrailValues,
+} from './guardrails/guardrailsConfig';
+import { OutboundProxySection } from './guardrails/OutboundProxySection';
 
 interface GuardrailsSettingsCardProps {
   settings: PublicScraperSettings;
   onSettingsUpdated: (settings: PublicScraperSettings) => void;
 }
 
+function extractGuardrails(settings: PublicScraperSettings): GuardrailValues {
+  return {
+    minJitterMs: settings.minJitterMs,
+    maxJitterMs: settings.maxJitterMs,
+    settleDelayMs: settings.settleDelayMs,
+    maxRequestsPerHour: settings.maxRequestsPerHour,
+    maxRequestsPerDay: settings.maxRequestsPerDay,
+    cooldownMinutes: settings.cooldownMinutes,
+  };
+}
+
 export function GuardrailsSettingsCard({
   settings,
   onSettingsUpdated,
 }: GuardrailsSettingsCardProps) {
-  const [minJitterMs, setMinJitterMs] = useState(settings.minJitterMs);
-  const [maxJitterMs, setMaxJitterMs] = useState(settings.maxJitterMs);
-  const [settleDelayMs, setSettleDelayMs] = useState(settings.settleDelayMs);
-  const [maxRequestsPerHour, setMaxRequestsPerHour] = useState(
-    settings.maxRequestsPerHour
-  );
-  const [maxRequestsPerDay, setMaxRequestsPerDay] = useState(
-    settings.maxRequestsPerDay
-  );
-  const [cooldownMinutes, setCooldownMinutes] = useState(
-    settings.cooldownMinutes
+  const [values, setValues] = useState<GuardrailValues>(() =>
+    extractGuardrails(settings)
   );
   const [proxyInput, setProxyInput] = useState('');
   const [clearProxy, setClearProxy] = useState(false);
@@ -49,29 +49,19 @@ export function GuardrailsSettingsCard({
   } | null>(null);
 
   useEffect(() => {
-    setMinJitterMs(settings.minJitterMs);
-    setMaxJitterMs(settings.maxJitterMs);
-    setSettleDelayMs(settings.settleDelayMs);
-    setMaxRequestsPerHour(settings.maxRequestsPerHour);
-    setMaxRequestsPerDay(settings.maxRequestsPerDay);
-    setCooldownMinutes(settings.cooldownMinutes);
+    setValues(extractGuardrails(settings));
   }, [settings]);
 
-  const isAlreadyDefault =
-    Number(minJitterMs) === DEFAULT_GUARDRAILS.minJitterMs &&
-    Number(maxJitterMs) === DEFAULT_GUARDRAILS.maxJitterMs &&
-    Number(settleDelayMs) === DEFAULT_GUARDRAILS.settleDelayMs &&
-    Number(maxRequestsPerHour) === DEFAULT_GUARDRAILS.maxRequestsPerHour &&
-    Number(maxRequestsPerDay) === DEFAULT_GUARDRAILS.maxRequestsPerDay &&
-    Number(cooldownMinutes) === DEFAULT_GUARDRAILS.cooldownMinutes;
+  const isAlreadyDefault = (
+    Object.keys(DEFAULT_GUARDRAILS) as Array<keyof GuardrailValues>
+  ).every((key) => Number(values[key]) === DEFAULT_GUARDRAILS[key]);
+
+  function handleFieldChange(key: keyof GuardrailValues, nextValue: number) {
+    setValues((prev) => ({ ...prev, [key]: nextValue }));
+  }
 
   function handleRestoreDefaults() {
-    setMinJitterMs(DEFAULT_GUARDRAILS.minJitterMs);
-    setMaxJitterMs(DEFAULT_GUARDRAILS.maxJitterMs);
-    setSettleDelayMs(DEFAULT_GUARDRAILS.settleDelayMs);
-    setMaxRequestsPerHour(DEFAULT_GUARDRAILS.maxRequestsPerHour);
-    setMaxRequestsPerDay(DEFAULT_GUARDRAILS.maxRequestsPerDay);
-    setCooldownMinutes(DEFAULT_GUARDRAILS.cooldownMinutes);
+    setValues({ ...DEFAULT_GUARDRAILS });
     setFeedback({
       type: 'success',
       text: 'Default guardrail values loaded. Click Save Guardrails to apply.',
@@ -85,12 +75,12 @@ export function GuardrailsSettingsCard({
 
     try {
       const body: Record<string, unknown> = {
-        minJitterMs: Number(minJitterMs),
-        maxJitterMs: Number(maxJitterMs),
-        settleDelayMs: Number(settleDelayMs),
-        maxRequestsPerHour: Number(maxRequestsPerHour),
-        maxRequestsPerDay: Number(maxRequestsPerDay),
-        cooldownMinutes: Number(cooldownMinutes),
+        minJitterMs: Number(values.minJitterMs),
+        maxJitterMs: Number(values.maxJitterMs),
+        settleDelayMs: Number(values.settleDelayMs),
+        maxRequestsPerHour: Number(values.maxRequestsPerHour),
+        maxRequestsPerDay: Number(values.maxRequestsPerDay),
+        cooldownMinutes: Number(values.cooldownMinutes),
       };
 
       if (clearProxy) {
@@ -159,260 +149,25 @@ export function GuardrailsSettingsCard({
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-4 text-xs">
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-          <div>
-            <div className="mb-1">
-              <Tooltip
-                content="Minimum randomized delay (ms) before navigating to Google Flights (Default: 4000ms [4 seconds])"
-                position="top"
-              >
-                <label
-                  tabIndex={0}
-                  className="inline-flex items-center gap-1 text-gunmetal-muted cursor-help"
-                >
-                  <span>Min Jitter (ms)</span>
-                  <Info className="h-3 w-3 text-slate-500 flex-shrink-0" />
-                </label>
-              </Tooltip>
-            </div>
-            <input
-              type="number"
-              min={500}
-              max={60000}
-              required
-              value={minJitterMs}
-              onChange={(e) => setMinJitterMs(Number(e.target.value))}
-              className="w-full px-2.5 py-1.5 rounded-lg bg-gunmetal-canvas border border-gunmetal-border text-slate-100 font-mono"
-            />
-          </div>
+        <GuardrailLimitsGrid values={values} onChange={handleFieldChange} />
 
-          <div>
-            <div className="mb-1">
-              <Tooltip
-                content="Maximum randomized delay (ms) before navigating to Google Flights (Default: 9000ms [9 seconds])"
-                position="top"
-              >
-                <label
-                  tabIndex={0}
-                  className="inline-flex items-center gap-1 text-gunmetal-muted cursor-help"
-                >
-                  <span>Max Jitter (ms)</span>
-                  <Info className="h-3 w-3 text-slate-500 flex-shrink-0" />
-                </label>
-              </Tooltip>
-            </div>
-            <input
-              type="number"
-              min={500}
-              max={120000}
-              required
-              value={maxJitterMs}
-              onChange={(e) => setMaxJitterMs(Number(e.target.value))}
-              className="w-full px-2.5 py-1.5 rounded-lg bg-gunmetal-canvas border border-gunmetal-border text-slate-100 font-mono"
-            />
-          </div>
+        <OutboundProxySection
+          hasProxy={settings.hasProxy}
+          maskedProxyUrl={settings.maskedProxyUrl}
+          proxyInput={proxyInput}
+          clearProxy={clearProxy}
+          onProxyInputChange={setProxyInput}
+          onClearProxyChange={setClearProxy}
+        />
 
-          <div>
-            <div className="mb-1">
-              <Tooltip
-                content="Wait time (ms) after page load for dynamic flight prices to render (Default: 2500ms [2.5 seconds])"
-                position="top"
-              >
-                <label
-                  tabIndex={0}
-                  className="inline-flex items-center gap-1 text-gunmetal-muted cursor-help"
-                >
-                  <span>Settle Delay (ms)</span>
-                  <Info className="h-3 w-3 text-slate-500 flex-shrink-0" />
-                </label>
-              </Tooltip>
-            </div>
-            <input
-              type="number"
-              min={500}
-              max={30000}
-              required
-              value={settleDelayMs}
-              onChange={(e) => setSettleDelayMs(Number(e.target.value))}
-              className="w-full px-2.5 py-1.5 rounded-lg bg-gunmetal-canvas border border-gunmetal-border text-slate-100 font-mono"
-            />
-          </div>
-
-          <div>
-            <div className="mb-1">
-              <Tooltip
-                content="Maximum allowed scrape requests per rolling 60-minute window (Default: 20)"
-                position="top"
-              >
-                <label
-                  tabIndex={0}
-                  className="inline-flex items-center gap-1 text-gunmetal-muted cursor-help"
-                >
-                  <span>Hourly Cap</span>
-                  <Info className="h-3 w-3 text-slate-500 flex-shrink-0" />
-                </label>
-              </Tooltip>
-            </div>
-            <input
-              type="number"
-              min={1}
-              max={500}
-              required
-              value={maxRequestsPerHour}
-              onChange={(e) => setMaxRequestsPerHour(Number(e.target.value))}
-              className="w-full px-2.5 py-1.5 rounded-lg bg-gunmetal-canvas border border-gunmetal-border text-slate-100 font-mono"
-            />
-          </div>
-
-          <div>
-            <div className="mb-1">
-              <Tooltip
-                content="Maximum allowed scrape requests per rolling 24-hour window (Default: 150)"
-                position="top"
-              >
-                <label
-                  tabIndex={0}
-                  className="inline-flex items-center gap-1 text-gunmetal-muted cursor-help"
-                >
-                  <span>Daily Cap</span>
-                  <Info className="h-3 w-3 text-slate-500 flex-shrink-0" />
-                </label>
-              </Tooltip>
-            </div>
-            <input
-              type="number"
-              min={1}
-              max={5000}
-              required
-              value={maxRequestsPerDay}
-              onChange={(e) => setMaxRequestsPerDay(Number(e.target.value))}
-              className="w-full px-2.5 py-1.5 rounded-lg bg-gunmetal-canvas border border-gunmetal-border text-slate-100 font-mono"
-            />
-          </div>
-
-          <div>
-            <div className="mb-1">
-              <Tooltip
-                content="Pause duration (minutes) when Google triggers a CAPTCHA or 429 block (Default: 60m)"
-                position="top"
-              >
-                <label
-                  tabIndex={0}
-                  className="inline-flex items-center gap-1 text-gunmetal-muted cursor-help"
-                >
-                  <span>Cooldown (min)</span>
-                  <Info className="h-3 w-3 text-slate-500 flex-shrink-0" />
-                </label>
-              </Tooltip>
-            </div>
-            <input
-              type="number"
-              min={1}
-              max={1440}
-              required
-              value={cooldownMinutes}
-              onChange={(e) => setCooldownMinutes(Number(e.target.value))}
-              className="w-full px-2.5 py-1.5 rounded-lg bg-gunmetal-canvas border border-gunmetal-border text-slate-100 font-mono"
-            />
-          </div>
-        </div>
-
-        <div className="pt-2 border-t border-gunmetal-border/70">
-          <div className="flex items-center justify-between mb-1">
-            <Tooltip
-              content="Optional HTTP, HTTPS, or SOCKS5 proxy routed for all Chromium requests"
-              position="top"
-            >
-              <label
-                tabIndex={0}
-                className="inline-flex items-center gap-1 text-gunmetal-muted cursor-help"
-              >
-                <span>Outbound Proxy URL (optional)</span>
-                <Info className="h-3 w-3 text-slate-500 flex-shrink-0" />
-              </label>
-            </Tooltip>
-            {settings.hasProxy && (
-              <Tooltip
-                content="Credentials are masked at rest; enter a new URL to replace"
-                position="top"
-              >
-                <span
-                  tabIndex={0}
-                  className="font-mono text-emerald-300 cursor-help"
-                >
-                  Active: {settings.maskedProxyUrl}
-                </span>
-              </Tooltip>
-            )}
-          </div>
-          <input
-            type="text"
-            value={proxyInput}
-            disabled={clearProxy}
-            onChange={(e) => setProxyInput(e.target.value)}
-            placeholder={
-              settings.hasProxy
-                ? 'Enter new proxy URL to replace existing...'
-                : 'http://user:pass@proxy.example.com:8080'
-            }
-            className="w-full px-2.5 py-1.5 rounded-lg bg-gunmetal-canvas border border-gunmetal-border text-slate-100 font-mono placeholder-zinc-600 disabled:opacity-40"
-          />
-          {settings.hasProxy && (
-            <div className="mt-1.5">
-              <Tooltip
-                content="Clears the saved outbound proxy and reverts to direct connections on save"
-                position="top"
-              >
-                <label className="inline-flex items-center gap-1.5 text-gunmetal-muted cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={clearProxy}
-                    onChange={(e) => setClearProxy(e.target.checked)}
-                    className="rounded border-gunmetal-border bg-gunmetal-canvas"
-                  />
-                  <span>Remove configured proxy on save</span>
-                </label>
-              </Tooltip>
-            </div>
-          )}
-        </div>
-
-        <details className="pt-2 border-t border-gunmetal-border/70">
-          <summary className="cursor-pointer text-slate-300 font-medium select-none">
-            <Tooltip
-              content="Rotate the console administrator password and invalidate existing sessions"
-              position="top"
-            >
-              <span className="inline-flex items-center gap-1">
-                <span>Change Admin Password</span>
-                <Info className="h-3 w-3 text-slate-500 flex-shrink-0" />
-              </span>
-            </Tooltip>
-          </summary>
-          <div className="mt-3 grid grid-cols-1 sm:grid-cols-3 gap-2.5">
-            <input
-              type="password"
-              value={currentPassword}
-              onChange={(e) => setCurrentPassword(e.target.value)}
-              placeholder="Current password"
-              className="px-2.5 py-1.5 rounded-lg bg-gunmetal-canvas border border-gunmetal-border text-slate-100 placeholder-zinc-600"
-            />
-            <input
-              type="password"
-              value={newPassword}
-              onChange={(e) => setNewPassword(e.target.value)}
-              placeholder="New password (min 8)"
-              className="px-2.5 py-1.5 rounded-lg bg-gunmetal-canvas border border-gunmetal-border text-slate-100 placeholder-zinc-600"
-            />
-            <input
-              type="password"
-              value={confirmNewPassword}
-              onChange={(e) => setConfirmNewPassword(e.target.value)}
-              placeholder="Confirm new password"
-              className="px-2.5 py-1.5 rounded-lg bg-gunmetal-canvas border border-gunmetal-border text-slate-100 placeholder-zinc-600"
-            />
-          </div>
-        </details>
+        <AdminPasswordSection
+          currentPassword={currentPassword}
+          newPassword={newPassword}
+          confirmNewPassword={confirmNewPassword}
+          onCurrentPasswordChange={setCurrentPassword}
+          onNewPasswordChange={setNewPassword}
+          onConfirmNewPasswordChange={setConfirmNewPassword}
+        />
 
         {feedback && (
           <div

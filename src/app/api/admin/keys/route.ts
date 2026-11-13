@@ -1,5 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createApiKey, listApiKeys } from '@/db/apiKeys';
+import {
+  createApiKey,
+  getOverallApiKeyUsage,
+  listApiKeys,
+} from '@/db/apiKeys';
 import { generateApiKey } from '@/utils/apiKeyAuth';
 import { isAdminAuthenticated } from '@/utils/auth';
 import { createApiKeySchema } from '@/utils/validation';
@@ -13,6 +17,7 @@ export async function GET(req: NextRequest) {
 
   return NextResponse.json({
     keys: listApiKeys(),
+    overallUsage: getOverallApiKeyUsage(),
   });
 }
 

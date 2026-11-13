@@ -81,7 +81,8 @@ export default function Tooltip({
     <div
       ref={containerRef}
       onMouseEnter={handleMouseEnter}
-      className={`relative inline-flex group/tooltip hover:z-50 ${className}`}
+      onFocus={handleMouseEnter}
+      className={`relative inline-flex group/tooltip hover:z-50 focus-within:z-50 ${className}`}
     >
       {children}
       <div
@@ -99,7 +100,7 @@ export default function Tooltip({
             className="w-1.5 h-1.5 bg-gunmetal-card border-l border-t border-slate-600 -mb-1 flex-shrink-0"
           />
         )}
-        <div className="bg-gunmetal-card/95 text-slate-100 text-[11px] font-sans font-semibold px-2.5 py-1 rounded shadow-2xl border border-slate-600 whitespace-nowrap backdrop-blur-sm">
+        <div className="w-max max-w-[240px] sm:max-w-[270px] bg-gunmetal-card/95 text-slate-100 text-[11px] font-sans font-semibold leading-snug text-center px-2.5 py-1.5 rounded shadow-2xl border border-slate-600 whitespace-normal break-words backdrop-blur-sm">
           {content}
         </div>
         {effectivePosition === 'top' && (

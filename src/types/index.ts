@@ -95,6 +95,12 @@ export interface PublicScraperSettings {
   updatedAt: string;
 }
 
+export interface ApiKeyUsageStats {
+  last1h: number;
+  last24h: number;
+  total: number;
+}
+
 export interface ApiKeyRecord {
   id: number;
   name: string;
@@ -102,6 +108,15 @@ export interface ApiKeyRecord {
   createdAt: string;
   lastUsedAt: string | null;
   revokedAt: string | null;
+  usage: ApiKeyUsageStats;
+}
+
+export interface OverallApiKeyUsage {
+  last1h: number;
+  last24h: number;
+  total: number;
+  activeKeys: number;
+  revokedKeys: number;
 }
 
 export interface CreatedApiKeyResponse {

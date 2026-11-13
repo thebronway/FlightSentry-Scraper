@@ -1,9 +1,17 @@
 # FlightSentry-Scraper Changelog
 
 *Last updated: 2026-11-13*  
-*Current Version: v0.2.0*
+*Current Version: v0.2.5*
 
 ## Changelog
+
+### Release v0.2.5
+- Added `1h`, `24h`, and `Total` request counts per API key.
+- Added the **Overall API Key Usage** card (`ApiUsageCard`).
+- Added deletion for revoked API keys (`PATCH /api/admin/keys/[id]` to revoke; `DELETE` to remove).
+- Fixed API key selection and clipboard copy fallback after creation.
+- Updated `Tooltip` wrapping and moved guardrail defaults onto a second line.
+- Split `GuardrailsSettingsCard` into modules under `src/components/guardrails/`.
 
 ### Release v0.2.0
 - Aligned Admin Console header, footer, quota progress bar colors, and typography with the main FlightSentry application.

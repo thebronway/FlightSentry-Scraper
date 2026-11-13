@@ -1,6 +1,5 @@
 # FlightSentry-Scraper REST API Specification
 
-**Version:** `v0.2.0`
 **API Base Path:** `/api/v1`  
 **Specification Standards:** OpenAPI 3.1.0 · RFC 9110 (HTTP Semantics) · RFC 6750 (Bearer Token Usage) · RFC 9457 (Problem Details) · ISO 8601 · ISO 4217 · IATA
 
@@ -1002,4 +1001,4 @@ components:
 ---
 
 ### 7.3 End of Specification
-*Document Version: `v0.2.0` · FlightSentry-Scraper REST API*
+*FlightSentry-Scraper REST API*
