@@ -1,0 +1,19 @@
+services:
+  flightsentry-scraper:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: thebronway/flightsentry-scraper:latest
+    container_name: flightsentry_scraper
+    ports:
+      - "4001:4001"
+    volumes:
+      - ./data:/app/data
+    shm_size: "1gb"
+    restart: unless-stopped
+    environment:
+      - NODE_ENV=production
+      - TZ=America/New_York
+      - PORT=4001
+      # Optional: pre-seed initial admin password on first boot (min 8 chars)
+      # - ADMIN_PASSWORD=change-me-strong-password
