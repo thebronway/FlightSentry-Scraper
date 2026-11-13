@@ -56,9 +56,19 @@ function encodeCabinEnum(cabin: CabinClass): number {
   }
 }
 
-export function buildGoogleFlightsUrl(req: ScrapeRequest): string {
+export interface BuildFlightsUrlOptions {
+  excludeBasicEconomy?: boolean;
+}
+
+export function buildGoogleFlightsUrl(
+  req: ScrapeRequest,
+  options?: BuildFlightsUrlOptions
+): string {
   const originAirports = normalizeAirportCodes(req.origin);
   const destAirports = normalizeAirportCodes(req.destination);
+  const excludeBasic =
+    options?.excludeBasicEconomy ??
+    (req.cabinClass === 'economy' && req.fareTier === 'Standard');
 
   const flightSliceParts: Buffer[] = [fieldString(2, req.departureDate)];
 
@@ -82,9 +92,9 @@ export function buildGoogleFlightsUrl(req: ScrapeRequest): string {
     fieldVarint(9, encodeCabinEnum(req.cabinClass)),
   ];
 
-  // Enforce 1 carry-on bag when Standard economy fare tier is requested (excludes Basic Economy)
-  if (req.cabinClass === 'economy' && req.fareTier === 'Standard') {
-    rootParts.push(fieldBytes(13, fieldVarint(2, 1)));
+  // Encode Google Flights native "Economy (exclude Basic)" flag (field 25 = 1)
+  if (excludeBasic) {
+    rootParts.push(fieldVarint(25, 1));
   }
 
   rootParts.push(fieldVarint(19, 2));
@@ -92,6 +102,9 @@ export function buildGoogleFlightsUrl(req: ScrapeRequest): string {
   const tfsToken = Buffer.concat(rootParts).toString('base64url');
   const url = new URL('https://www.google.com/travel/flights/search');
   url.searchParams.set('tfs', tfsToken);
+  if (excludeBasic) {
+    url.searchParams.set('tfu', 'EgYIABAAGAA');
+  }
   url.searchParams.set('hl', 'en');
   url.searchParams.set('curr', req.currency || 'USD');
 

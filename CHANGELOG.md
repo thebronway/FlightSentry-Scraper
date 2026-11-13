@@ -1,9 +1,13 @@
 # FlightSentry-Scraper Changelog
 
 *Last updated: 2026-11-13*  
-*Current Version: v0.3.0*
+*Current Version: v0.3.5*
 
 ## Changelog
+
+### Release v0.3.5
+- Replaced the carry-on bag proxy filter (`field 13 -> field 2 = 1`) in `urlBuilder.ts` with Google Flights' native `Economy (exclude Basic)` protobuf parameter (`field 25 = 1` + `tfu=EgYIABAAGAA`), properly excluding Basic Economy fares across carriers that include a free carry-on bag (American, Delta, Alaska, JetBlue, Southwest).
+- Added automatic fallback in `googleFlightsScraper.ts` to standard `Economy` when an intercontinental route outside North America returns 0 itineraries with `excludeBasicEconomy` enabled.
 
 ### Release v0.3.0
 - Added Global Pause toggle in the Admin Console (`POST /api/admin/pause`) that halts scrapes with HTTP `503` without consuming quota.

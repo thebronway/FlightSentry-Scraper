@@ -1,7 +1,7 @@
 # FlightSentry-Scraper
 
 ![License](https://img.shields.io/badge/license-MIT-blue.svg)
-![Version](https://img.shields.io/badge/version-v0.3.0-blue.svg)
+![Version](https://img.shields.io/badge/version-v0.3.5-blue.svg)
 ![Docker](https://img.shields.io/docker/pulls/thebronway/flightsentry-scraper?logo=docker)
 
 ### A self-hosted headless Chromium scraper microservice for FlightSentry.
@@ -20,7 +20,7 @@ FlightSentry-Scraper runs an isolated Chromium instance to scrape Google Flights
 
 ## Features
 - **Headless Chromium Scraper:** Persistent stealth browser context with Google consent handling, `ds:1` payload extraction, and DOM fallback into `RouteItinerary[]`.
-- **Fare & Cabin Support:** Encodes origin/destination IATA and metropolitan area codes (`WAS`, `NYC`, `LON`, etc.), cabin classes (`economy`, `premium_economy`, `business`, `first`), and `Basic` vs `Standard` (carry-on bag) filtering.
+- **Fare & Cabin Support:** Encodes single or multi-airport IATA arrays, cabin classes (`economy`, `premium_economy`, `business`, `first`), and native Google Flights `Basic` vs `Standard` (`Economy (exclude Basic)`) filtering with automatic intercontinental fallback.
 - **Anti-Bot Guardrails:** Strict serial FIFO queue (`concurrency = 1`), randomized inter-request jitter, rolling hourly/daily query caps, and automatic CAPTCHA/HTTP 429/403 circuit breaker with manual cooldown reset.
 - **Defense-in-Depth Security:** Mandatory first-run `scrypt` admin password setup, HMAC-SHA256 signed `HttpOnly` session cookies, login rate limiting, SHA-256 hashed `fss_...` API keys, Zod input validation, strict Google-domain `page.route()` network isolation, and non-root container execution.
 - **Admin Console:** Dark Gunmetal web UI on port `4001` for API key lifecycle management, guardrail and proxy configuration, live test scrapes, and diagnostic scrape logs.

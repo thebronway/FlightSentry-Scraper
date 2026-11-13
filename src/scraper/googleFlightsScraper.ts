@@ -216,6 +216,91 @@ async function performBrowserScrape(
       return { httpStatus: 429, response };
     }
 
+    // Google Flights only supports "Economy (exclude Basic)" on North American/US-territory routes;
+    // fall back to standard Economy if an international route returns 0 results with excludeBasic enabled.
+    if (
+      itineraries.length === 0 &&
+      req.cabinClass === 'economy' &&
+      req.fareTier === 'Standard'
+    ) {
+      const fallbackUrl = buildGoogleFlightsUrl(req, {
+        excludeBasicEconomy: false,
+      });
+      const fallbackNav = await page.goto(fallbackUrl, {
+        waitUntil: 'domcontentloaded',
+        timeout: HARD_SCRAPE_TIMEOUT_MS,
+      });
+      const fallbackHttpStatus = fallbackNav ? fallbackNav.status() : null;
+
+      await dismissConsentIfPresent(page);
+
+      await page
+        .waitForLoadState('networkidle', { timeout: 12_000 })
+        .catch(() => null);
+
+      await page.waitForTimeout(settings.settleDelayMs);
+
+      const fallbackHtml = await page.content();
+      const fallbackDs1 = extractDs1JsonFromHtml(fallbackHtml);
+      if (fallbackDs1) {
+        interceptedPayloads.unshift(fallbackDs1);
+      }
+
+      itineraries = parseStructuredPayload(
+        interceptedPayloads,
+        req.departureDate
+      );
+
+      if (itineraries.length === 0) {
+        itineraries = await parseItinerariesFromDom(page, req);
+      }
+
+      const fallbackBlockCheck = await inspectForUpstreamBlock(
+        page,
+        fallbackHttpStatus,
+        itineraries.length > 0
+      );
+
+      if (fallbackBlockCheck.blocked) {
+        const durationMs = Date.now() - startedAt;
+        const response: ScrapeResponse = {
+          status: 'RateLimited',
+          price: null,
+          currency: req.currency,
+          leadingAirline: null,
+          leadingFlightNumber: null,
+          itineraries: [],
+          errorMessage: fallbackBlockCheck.reason,
+          meta: {
+            durationMs,
+            retryAfter: fallbackBlockCheck.retryAfter,
+            rawPayload: req.includeRaw
+              ? truncateRawPayload(interceptedPayloads)
+              : null,
+          },
+        };
+
+        insertScrapeLog({
+          apiKeyId,
+          route: routeLabel,
+          flightNumber: flightLabel,
+          departureDate: req.departureDate,
+          cabinClass: req.cabinClass,
+          fareTier: req.fareTier,
+          status: 'RateLimited',
+          statusCode: 429,
+          itineraryCount: 0,
+          lowestPrice: null,
+          currency: req.currency,
+          errorMessage: fallbackBlockCheck.reason,
+          durationMs,
+          queriedAt: new Date().toISOString(),
+        });
+
+        return { httpStatus: 429, response };
+      }
+    }
+
     const filtered = applyScrapeFilters(itineraries, req);
     const durationMs = Date.now() - startedAt;
 

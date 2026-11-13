@@ -89,7 +89,7 @@ Returns service liveness, version metadata, circuit breaker state, current FIFO 
 | :--- | :--- | :--- | :--- |
 | `status` | `string` | No | Service health indicator: `"ok"`, `"rate_limited"`, `"cooldown"`, or `"paused"`. |
 | `state` | `string` | No | Explicit operational state: `"ready"`, `"rate_limited"`, `"cooldown"`, or `"paused"`. |
-| `version` | `string` | No | Semantic version of the running scraper service from `package.json` (e.g., `"0.3.0"`). |
+| `version` | `string` | No | Semantic version of the running scraper service from `package.json` (e.g., `"0.3.5"`). |
 | `apiVersion` | `string` | No | REST API major version identifier (`"v1"`). |
 | `paused` | `boolean` | No | `true` when Global Pause is enabled by an administrator in the Admin Console (read-only for API key users); `false` otherwise. |
 | `circuitBreakerActive` | `boolean` | No | `true` if Google anti-bot protection recently tripped cooldown; `false` otherwise. |
@@ -155,7 +155,7 @@ Executes a one-way flight search on Google Flights for a given origin, destinati
 | `destination` | `string \| string[]` | **Yes** | — | `^[A-Z]{3}$` or array of 1–8 unique `^[A-Z]{3}$` (trimmed, uppercased) | Single 3-letter IATA airport code (e.g., `"JFK"`) or array of 1 to 8 unique airport codes (e.g., `["JFK", "LGA", "EWR"]`). |
 | `departureDate` | `string` | **Yes** | — | `^\d{4}-\d{2}-\d{2}$` (valid calendar date) | One-way departure date in ISO 8601 calendar format (`YYYY-MM-DD`). |
 | `cabinClass` | `string` | No | `"economy"` | `"economy"` \| `"premium_economy"` \| `"business"` \| `"first"` | Target cabin class encoded into the Google Flights protobuf `tfs` payload (`1` = economy, `2` = premium_economy, `3` = business, `4` = first). |
-| `fareTier` | `string` | No | `"Standard"` | `"Basic"` \| `"Standard"` | Fare restriction tier. When `cabinClass === "economy"` and `fareTier === "Standard"`, sets the Google Flights **1 carry-on bag** filter to exclude Basic Economy fares. |
+| `fareTier` | `string` | No | `"Standard"` | `"Basic"` \| `"Standard"` | Fare restriction tier. When `cabinClass === "economy"` and `fareTier === "Standard"`, encodes Google Flights' native **Economy (exclude Basic)** filter (`tfs` root `field 25 = 1` + `tfu=EgYIABAAGAA`), with automatic fallback to standard `Economy` on intercontinental routes. |
 | `currency` | `string` | No | `"USD"` | `^[A-Z]{3}$` (ISO 4217) | 3-letter currency code passed to Google Flights (`curr` parameter). |
 | `maxStops` | `integer` | No | `undefined` | Integer `0` through `3` | Maximum allowed connection stops (`0` = nonstop only, `1` = 1 stop or fewer, etc.). Applied post-extraction. |
 | `airline` | `string` | No | `undefined` | `^[A-Z0-9]{2}$` (trimmed, uppercased) | Single 2-character IATA carrier code filter (e.g., `"UA"`, `"F9"`, `"DL"`). |
@@ -166,9 +166,9 @@ Executes a one-way flight search on Google Flights for a given origin, destinati
 #### Protobuf `tfs` Query Construction & Filter Semantics
 1. **Multi-Airport Array Encoding:** Deduplicated `origin` airport codes (1 to 8) are encoded into outbound protobuf slice `field 13`, and deduplicated `destination` airport codes (1 to 8) are encoded into `field 14` within a single Google Flights navigation (consuming **1 quota unit**). Each returned `RouteItinerary` reports the **specific operating airport** (e.g., `"DFW"` or `"DAL"` → `"JFK"`, `"LGA"`, or `"EWR"`).
 2. **Basic vs. Standard Economy:**
-   * `cabinClass: "economy"` + `fareTier: "Basic"` → Omits carry-on bag restriction; returns lowest available fares including Basic Economy (e.g., Frontier/United/Delta Basic).
-   * `cabinClass: "economy"` + `fareTier: "Standard"` → Encodes `field 13 -> field 2 = 1` (1 carry-on bag) in `tfs`, filtering out Basic Economy fares at the Google Flights query level.
-   * For `premium_economy`, `business`, and `first`, `fareTier` has no restrictive effect as carry-on baggage is standard.
+   * `cabinClass: "economy"` + `fareTier: "Basic"` → Omits the Basic Economy exclusion flag; returns lowest available fares including Basic Economy (e.g., Frontier/United/Delta/American Basic).
+   * `cabinClass: "economy"` + `fareTier: "Standard"` → Encodes root protobuf `field 25 = 1` (`Economy (exclude Basic)`) and `tfu=EgYIABAAGAA` in the Google Flights search URL. If an intercontinental route outside North America returns `0` itineraries under `Economy (exclude Basic)`, the scraper automatically falls back to standard `Economy` within the same job.
+   * For `premium_economy`, `business`, and `first`, `fareTier` has no restrictive effect.
 3. **Post-Extraction Filter Precedence:** Extracted itineraries are filtered in memory in the following order, then sorted ascending by `price`:
    1. `maxStops` (`item.stops <= req.maxStops`)
    2. `includedAirlines` (`req.includedAirlines.includes(item.airline)`)
@@ -575,7 +575,7 @@ export class FlightSentryScraperClient {
 openapi: 3.1.0
 info:
   title: FlightSentry-Scraper API
-  version: 0.3.0
+  version: 0.3.5
   description: |
     Self-hosted headless Chromium microservice for scraping Google Flights itineraries,
     protected by Bearer API keys, serial FIFO queueing, rolling quotas, and an anti-bot circuit breaker.
@@ -705,7 +705,7 @@ components:
           enum: ["ready", "rate_limited", "cooldown", "paused"]
         version:
           type: string
-          example: "0.3.0"
+          example: "0.3.5"
         apiVersion:
           type: string
           example: "v1"
@@ -790,7 +790,7 @@ components:
           type: string
           enum: ["Basic", "Standard"]
           default: "Standard"
-          description: Standard enforces 1 carry-on bag in economy to exclude Basic Economy fares
+          description: Standard encodes Google Flights' native Economy (exclude Basic) filter (field 25 = 1 + tfu=EgYIABAAGAA) with automatic intercontinental fallback
         currency:
           type: string
           pattern: "^[A-Z]{3}$"
