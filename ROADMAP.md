@@ -14,6 +14,8 @@ This document tracks planned improvements, enhancements, and technical debt for 
     - View overall usage
     - After revoke, can we delete them?
     - copy button not working after creating, text is not highlighted, maybe thats the issue
+- Tooltips
+    - long ones need to go on the second line
 
 ### Release v0.3.5: Global Pause
 - Add global pause

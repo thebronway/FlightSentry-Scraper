@@ -163,7 +163,7 @@ export function GuardrailsSettingsCard({
           <div>
             <div className="mb-1">
               <Tooltip
-                content="Minimum randomized delay (ms) before navigating to Google Flights (Default: 4000ms)"
+                content="Minimum randomized delay (ms) before navigating to Google Flights (Default: 4000ms [4 seconds])"
                 position="top"
               >
                 <label
@@ -189,7 +189,7 @@ export function GuardrailsSettingsCard({
           <div>
             <div className="mb-1">
               <Tooltip
-                content="Maximum randomized delay (ms) before navigating to Google Flights (Default: 9000ms)"
+                content="Maximum randomized delay (ms) before navigating to Google Flights (Default: 9000ms [9 seconds])"
                 position="top"
               >
                 <label
@@ -215,7 +215,7 @@ export function GuardrailsSettingsCard({
           <div>
             <div className="mb-1">
               <Tooltip
-                content="Wait time (ms) after page load for dynamic flight prices to render (Default: 2500ms)"
+                content="Wait time (ms) after page load for dynamic flight prices to render (Default: 2500ms [2.5 seconds])"
                 position="top"
               >
                 <label

@@ -3,7 +3,7 @@ import { ThemeProvider } from 'next-themes';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: 'FlightSentry Scraper — Headless Engine Console',
+  title: 'FlightSentry Scraper',
   description:
     'Self-hosted headless Chromium scraper microservice for FlightSentry.',
   icons: {
