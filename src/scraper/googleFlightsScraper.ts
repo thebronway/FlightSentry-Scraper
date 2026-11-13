@@ -72,12 +72,15 @@ async function performBrowserScrape(
       ? `${req.airline ?? ''}${req.flightNumber ?? ''}`
       : null;
 
-  // Re-check rate limits & circuit breaker immediately before launching a page
+  // Re-check global pause, rate limits & circuit breaker immediately before launching a page
   const preCheck = checkPreScrapeAllowance();
   if (!preCheck.allowed) {
+    const isPaused = preCheck.paused;
+    const status = isPaused ? 'Paused' : 'RateLimited';
+    const httpStatus = isPaused ? 503 : 429;
     const durationMs = Date.now() - startedAt;
     const response: ScrapeResponse = {
-      status: 'RateLimited',
+      status,
       price: null,
       currency: req.currency,
       leadingAirline: null,
@@ -98,8 +101,8 @@ async function performBrowserScrape(
       departureDate: req.departureDate,
       cabinClass: req.cabinClass,
       fareTier: req.fareTier,
-      status: 'RateLimited',
-      statusCode: 429,
+      status,
+      statusCode: httpStatus,
       itineraryCount: 0,
       lowestPrice: null,
       currency: req.currency,
@@ -108,7 +111,7 @@ async function performBrowserScrape(
       queriedAt: new Date().toISOString(),
     });
 
-    return { httpStatus: 429, response };
+    return { httpStatus, response };
   }
 
   const settings = getSettings();
@@ -343,9 +346,12 @@ export async function executeQueuedScrape(
   req: ScrapeRequest,
   apiKeyId: number | null
 ): Promise<ScrapeExecutionResult> {
-  // Fast-fail before queueing if hourly/daily cap or circuit breaker is already tripped
+  // Fast-fail before queueing if global pause, hourly/daily cap, or circuit breaker is active
   const immediateCheck = checkPreScrapeAllowance();
   if (!immediateCheck.allowed) {
+    const isPaused = immediateCheck.paused;
+    const status = isPaused ? 'Paused' : 'RateLimited';
+    const httpStatus = isPaused ? 503 : 429;
     const routeLabel = `${formatLocationDisplay(req.origin)} -> ${formatLocationDisplay(req.destination)}`;
     const flightLabel =
       req.airline || req.flightNumber
@@ -353,7 +359,7 @@ export async function executeQueuedScrape(
         : null;
 
     const response: ScrapeResponse = {
-      status: 'RateLimited',
+      status,
       price: null,
       currency: req.currency,
       leadingAirline: null,
@@ -374,8 +380,8 @@ export async function executeQueuedScrape(
       departureDate: req.departureDate,
       cabinClass: req.cabinClass,
       fareTier: req.fareTier,
-      status: 'RateLimited',
-      statusCode: 429,
+      status,
+      statusCode: httpStatus,
       itineraryCount: 0,
       lowestPrice: null,
       currency: req.currency,
@@ -384,7 +390,7 @@ export async function executeQueuedScrape(
       queriedAt: new Date().toISOString(),
     });
 
-    return { httpStatus: 429, response };
+    return { httpStatus, response };
   }
 
   return enqueueScrape(() => performBrowserScrape(req, apiKeyId));

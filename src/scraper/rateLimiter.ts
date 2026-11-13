@@ -5,6 +5,7 @@ import type { UsageQuotaStats } from '@/types';
 
 export interface RateCheckResult {
   allowed: boolean;
+  paused: boolean;
   reason: string | null;
   retryAfter: string | null;
   usage: UsageQuotaStats;
@@ -25,11 +26,22 @@ export function checkPreScrapeAllowance(): RateCheckResult {
   const settings = getSettings();
   const usage = getUsageStats();
 
+  if (settings.globalPaused) {
+    return {
+      allowed: false,
+      paused: true,
+      reason: 'Scraper is globally paused by an administrator.',
+      retryAfter: null,
+      usage,
+    };
+  }
+
   if (settings.circuitBreakerUntil) {
     const expiresAt = Date.parse(settings.circuitBreakerUntil);
     if (!Number.isNaN(expiresAt) && Date.now() < expiresAt) {
       return {
         allowed: false,
+        paused: false,
         reason:
           settings.circuitBreakerReason ||
           'Circuit breaker active due to upstream rate limiting.',
@@ -43,6 +55,7 @@ export function checkPreScrapeAllowance(): RateCheckResult {
     const retryAfter = new Date(Date.now() + 15 * 60 * 1000).toISOString();
     return {
       allowed: false,
+      paused: false,
       reason: `Hourly scrape limit reached (${usage.hourlyUsed}/${settings.maxRequestsPerHour}).`,
       retryAfter,
       usage,
@@ -53,6 +66,7 @@ export function checkPreScrapeAllowance(): RateCheckResult {
     const retryAfter = new Date(Date.now() + 60 * 60 * 1000).toISOString();
     return {
       allowed: false,
+      paused: false,
       reason: `Daily scrape limit reached (${usage.dailyUsed}/${settings.maxRequestsPerDay}).`,
       retryAfter,
       usage,
@@ -61,6 +75,7 @@ export function checkPreScrapeAllowance(): RateCheckResult {
 
   return {
     allowed: true,
+    paused: false,
     reason: null,
     retryAfter: null,
     usage,

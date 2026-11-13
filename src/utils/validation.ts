@@ -69,6 +69,10 @@ export const createApiKeySchema = z.object({
     .max(64, 'Key name must be 64 characters or fewer.'),
 });
 
+export const togglePauseSchema = z.object({
+  paused: z.boolean(),
+});
+
 export const updateSettingsSchema = z
   .object({
     minJitterMs: z.number().int().min(500).max(60000),

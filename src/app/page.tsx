@@ -135,7 +135,13 @@ export default function HomePage() {
     <div className="min-h-screen flex flex-col bg-gunmetal-canvas text-slate-100">
       <Navbar
         authenticated={authenticated}
+        globalPaused={Boolean(settings?.globalPaused)}
         circuitBreakerActive={Boolean(settings?.circuitBreakerActive)}
+        rateLimited={Boolean(
+          settings &&
+            (usage.hourlyUsed >= settings.maxRequestsPerHour ||
+              usage.dailyUsed >= settings.maxRequestsPerDay)
+        )}
         onSignOut={handleSignOut}
       />
 
@@ -169,7 +175,10 @@ export default function HomePage() {
             onSettingsUpdated={setSettings}
           />
 
-          <LiveTestScrapeCard onScrapeCompleted={refreshDashboardData} />
+          <LiveTestScrapeCard
+            globalPaused={settings.globalPaused}
+            onScrapeCompleted={refreshDashboardData}
+          />
 
           <ScrapeLogsCard logs={logs} onRefresh={refreshDashboardData} />
         </main>

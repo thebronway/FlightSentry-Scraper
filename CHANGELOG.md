@@ -1,9 +1,14 @@
 # FlightSentry-Scraper Changelog
 
 *Last updated: 2026-11-13*  
-*Current Version: v0.2.5*
+*Current Version: v0.3.0*
 
 ## Changelog
+
+### Release v0.3.0
+- Added Global Pause toggle in the Admin Console (`POST /api/admin/pause`) that halts scrapes with HTTP `503` without consuming quota.
+- Styled paused state and quota progress bars with orange theming and color-coded Chromium Engine statuses (`Ready`, `Paused`, `Cooldown`, `Rate Limited`).
+- Added `paused` status reporting to `GET /api/v1/health` and `"Paused"` outcome to `POST /api/v1/scrape` (read-only for API key users).
 
 ### Release v0.2.5
 - Added `1h`, `24h`, and `Total` request counts per API key.

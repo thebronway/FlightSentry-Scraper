@@ -40,7 +40,11 @@ export function insertScrapeLog(entry: Omit<ScrapeLogEntry, 'id'>): number {
       entry.queriedAt
     );
 
-  if (entry.apiKeyId !== null && entry.status !== 'RateLimited') {
+  if (
+    entry.apiKeyId !== null &&
+    entry.status !== 'RateLimited' &&
+    entry.status !== 'Paused'
+  ) {
     db.prepare(
       `UPDATE api_keys
        SET totalRequests = totalRequests + 1
@@ -83,7 +87,7 @@ export function getRollingUsageCounts(): {
     .prepare(
       `SELECT COUNT(*) AS count
        FROM scrape_logs
-       WHERE queriedAt >= ? AND status != 'RateLimited'`
+       WHERE queriedAt >= ? AND status NOT IN ('RateLimited', 'Paused')`
     )
     .get(oneHourAgo) as { count: number };
 
@@ -91,7 +95,7 @@ export function getRollingUsageCounts(): {
     .prepare(
       `SELECT COUNT(*) AS count
        FROM scrape_logs
-       WHERE queriedAt >= ? AND status != 'RateLimited'`
+       WHERE queriedAt >= ? AND status NOT IN ('RateLimited', 'Paused')`
     )
     .get(twentyFourHoursAgo) as { count: number };
 

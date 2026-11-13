@@ -60,6 +60,8 @@ export function getPublicSettings(): PublicScraperSettings {
     circuitBreakerActive,
     circuitBreakerUntil: circuitBreakerActive ? s.circuitBreakerUntil : null,
     circuitBreakerReason: circuitBreakerActive ? s.circuitBreakerReason : null,
+    globalPaused: Boolean(s.globalPaused),
+    globalPausedAt: s.globalPaused ? s.globalPausedAt : null,
     hasProxy: Boolean(s.proxyUrl),
     maskedProxyUrl: maskProxyUrl(s.proxyUrl),
     updatedAt: s.updatedAt,
@@ -149,4 +151,17 @@ export function resetCircuitBreaker(): void {
      SET circuitBreakerUntil = NULL, circuitBreakerReason = NULL, updatedAt = ?
      WHERE id = 1`
   ).run(now);
+}
+
+export function setGlobalPaused(paused: boolean): PublicScraperSettings {
+  const now = new Date().toISOString();
+  db.prepare(
+    `UPDATE settings
+     SET globalPaused = ?,
+         globalPausedAt = ?,
+         updatedAt = ?
+     WHERE id = 1`
+  ).run(paused ? 1 : 0, paused ? now : null, now);
+
+  return getPublicSettings();
 }

@@ -64,11 +64,11 @@ export function listApiKeys(): ApiKeyRecord[] {
          k.revokedAt,
          k.totalRequests,
          COALESCE(
-           SUM(CASE WHEN l.queriedAt >= ? AND l.status != 'RateLimited' THEN 1 ELSE 0 END),
+           SUM(CASE WHEN l.queriedAt >= ? AND l.status NOT IN ('RateLimited', 'Paused') THEN 1 ELSE 0 END),
            0
          ) AS last1h,
          COALESCE(
-           SUM(CASE WHEN l.queriedAt >= ? AND l.status != 'RateLimited' THEN 1 ELSE 0 END),
+           SUM(CASE WHEN l.queriedAt >= ? AND l.status NOT IN ('RateLimited', 'Paused') THEN 1 ELSE 0 END),
            0
          ) AS last24h
        FROM api_keys k
@@ -114,7 +114,7 @@ export function getOverallApiKeyUsage(): OverallApiKeyUsage {
          COALESCE(SUM(CASE WHEN queriedAt >= ? THEN 1 ELSE 0 END), 0) AS last1h,
          COALESCE(SUM(CASE WHEN queriedAt >= ? THEN 1 ELSE 0 END), 0) AS last24h
        FROM scrape_logs
-       WHERE apiKeyId IS NOT NULL AND status != 'RateLimited'`
+       WHERE apiKeyId IS NOT NULL AND status NOT IN ('RateLimited', 'Paused')`
     )
     .get(oneHourAgo, twentyFourHoursAgo) as { last1h: number; last24h: number };
 

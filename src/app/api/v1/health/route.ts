@@ -18,36 +18,48 @@ export async function GET(req: NextRequest) {
   const allowance = checkPreScrapeAllowance();
   const queueDepth = getQueueDepth();
 
-  const isCooldown = settings.circuitBreakerActive;
-  const isRateLimited = !isCooldown && !allowance.allowed;
+  const isPaused = settings.globalPaused;
+  const isCooldown = !isPaused && settings.circuitBreakerActive;
+  const isRateLimited = !isPaused && !isCooldown && !allowance.allowed;
 
-  const status: HealthResponse['status'] = isCooldown
-    ? 'cooldown'
-    : isRateLimited
-      ? 'rate_limited'
-      : 'ok';
+  const status: HealthResponse['status'] = isPaused
+    ? 'paused'
+    : isCooldown
+      ? 'cooldown'
+      : isRateLimited
+        ? 'rate_limited'
+        : 'ok';
 
-  const state: HealthResponse['state'] = isCooldown
-    ? 'cooldown'
-    : isRateLimited
-      ? 'rate_limited'
-      : 'ready';
+  const state: HealthResponse['state'] = isPaused
+    ? 'paused'
+    : isCooldown
+      ? 'cooldown'
+      : isRateLimited
+        ? 'rate_limited'
+        : 'ready';
 
-  const statusReason = isCooldown
-    ? settings.circuitBreakerReason || 'Circuit breaker active due to upstream rate limiting.'
-    : isRateLimited
-      ? allowance.reason
-      : null;
+  const statusReason = isPaused
+    ? 'Scraper is globally paused by an administrator.'
+    : isCooldown
+      ? settings.circuitBreakerReason || 'Circuit breaker active due to upstream rate limiting.'
+      : isRateLimited
+        ? allowance.reason
+        : null;
 
   const payload: HealthResponse = {
     status,
     state,
     version: packageInfo.version,
     apiVersion: 'v1',
-    circuitBreakerActive: isCooldown,
+    paused: settings.globalPaused,
+    circuitBreakerActive: settings.circuitBreakerActive,
     rateLimited: isRateLimited,
     statusReason,
-    retryAfter: isCooldown ? settings.circuitBreakerUntil : allowance.retryAfter,
+    retryAfter: isPaused
+      ? null
+      : settings.circuitBreakerActive
+        ? settings.circuitBreakerUntil
+        : allowance.retryAfter,
     queueDepth,
     usage: allowance.usage,
   };

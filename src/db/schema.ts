@@ -11,6 +11,8 @@ CREATE TABLE IF NOT EXISTS settings (
     cooldownMinutes INTEGER NOT NULL DEFAULT 60,
     circuitBreakerUntil TEXT,
     circuitBreakerReason TEXT,
+    globalPaused INTEGER NOT NULL DEFAULT 0,
+    globalPausedAt TEXT,
     proxyUrl TEXT,
     updatedAt TEXT NOT NULL
 );

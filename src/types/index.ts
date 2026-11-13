@@ -2,7 +2,7 @@ export type CabinClass = 'economy' | 'premium_economy' | 'business' | 'first';
 
 export type FareTier = 'Basic' | 'Standard';
 
-export type ScrapeStatus = 'Success' | 'SoldOut' | 'RateLimited' | 'Error';
+export type ScrapeStatus = 'Success' | 'SoldOut' | 'RateLimited' | 'Paused' | 'Error';
 export interface ScrapeRequest {
   origin: string | string[];
   destination: string | string[];
@@ -75,6 +75,8 @@ export interface ScraperSettings {
   cooldownMinutes: number;
   circuitBreakerUntil: string | null;
   circuitBreakerReason: string | null;
+  globalPaused: number;
+  globalPausedAt: string | null;
   proxyUrl: string | null;
   updatedAt: string;
 }
@@ -90,6 +92,8 @@ export interface PublicScraperSettings {
   circuitBreakerActive: boolean;
   circuitBreakerUntil: string | null;
   circuitBreakerReason: string | null;
+  globalPaused: boolean;
+  globalPausedAt: string | null;
   hasProxy: boolean;
   maskedProxyUrl: string | null;
   updatedAt: string;
@@ -150,10 +154,11 @@ export interface UsageQuotaStats {
 }
 
 export interface HealthResponse {
-  status: 'ok' | 'rate_limited' | 'cooldown';
-  state: 'ready' | 'rate_limited' | 'cooldown';
+  status: 'ok' | 'rate_limited' | 'cooldown' | 'paused';
+  state: 'ready' | 'rate_limited' | 'cooldown' | 'paused';
   version: string;
   apiVersion: string;
+  paused: boolean;
   circuitBreakerActive: boolean;
   rateLimited: boolean;
   statusReason: string | null;

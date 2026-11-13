@@ -30,6 +30,22 @@ export function initializeDatabase(database: Database.Database): void {
     );
   }
 
+  const settingsColumns = database
+    .prepare('PRAGMA table_info(settings)')
+    .all() as Array<{ name: string }>;
+
+  if (!settingsColumns.some((col) => col.name === 'globalPaused')) {
+    database.exec(
+      `ALTER TABLE settings ADD COLUMN globalPaused INTEGER NOT NULL DEFAULT 0;`
+    );
+  }
+
+  if (!settingsColumns.some((col) => col.name === 'globalPausedAt')) {
+    database.exec(
+      `ALTER TABLE settings ADD COLUMN globalPausedAt TEXT;`
+    );
+  }
+
   const existing = database
     .prepare('SELECT id FROM settings WHERE id = 1')
     .get() as { id: number } | undefined;
@@ -58,9 +74,11 @@ export function initializeDatabase(database: Database.Database): void {
           cooldownMinutes,
           circuitBreakerUntil,
           circuitBreakerReason,
+          globalPaused,
+          globalPausedAt,
           proxyUrl,
           updatedAt
-        ) VALUES (1, ?, ?, 4000, 9000, 2500, 20, 150, 60, NULL, NULL, NULL, ?)`
+        ) VALUES (1, ?, ?, 4000, 9000, 2500, 20, 150, 60, NULL, NULL, 0, NULL, NULL, ?)`
       )
       .run(adminPasswordHash, sessionSecret, now);
   }

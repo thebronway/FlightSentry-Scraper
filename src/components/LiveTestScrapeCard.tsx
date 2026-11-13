@@ -5,6 +5,7 @@ import { Plane, Play } from 'lucide-react';
 import type { CabinClass, FareTier, ScrapeResponse } from '@/types';
 
 interface LiveTestScrapeCardProps {
+  globalPaused: boolean;
   onScrapeCompleted: () => Promise<void>;
 }
 
@@ -14,6 +15,7 @@ function defaultFutureDate(): string {
 }
 
 export function LiveTestScrapeCard({
+  globalPaused,
   onScrapeCompleted,
 }: LiveTestScrapeCardProps) {
   const [origin, setOrigin] = useState('WAS');
@@ -153,14 +155,23 @@ export function LiveTestScrapeCard({
           </div>
         </div>
 
-        <button
-          type="submit"
-          disabled={running}
-          className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg font-medium bg-slate-100 text-zinc-950 hover:bg-white disabled:opacity-50 transition-colors"
-        >
-          <Play className="h-3.5 w-3.5" />
-          {running ? 'Scraping Google Flights...' : 'Run Live Scrape'}
-        </button>
+        <div className="flex flex-wrap items-center gap-3">
+          <button
+            type="submit"
+            disabled={running || globalPaused}
+            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg font-medium bg-slate-100 text-zinc-950 hover:bg-white disabled:opacity-50 transition-colors"
+          >
+            <Play className="h-3.5 w-3.5" />
+            {running ? 'Scraping Google Flights...' : 'Run Live Scrape'}
+          </button>
+
+          {globalPaused && (
+            <span className="text-xs text-orange-300">
+              Scraper is globally paused. Resume the engine above to run a live
+              test scrape.
+            </span>
+          )}
+        </div>
       </form>
 
       {error && (

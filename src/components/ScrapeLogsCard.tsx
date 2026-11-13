@@ -14,6 +14,8 @@ function badgeStyle(status: ScrapeStatus): string {
       return 'bg-emerald-500/10 text-emerald-300 border-emerald-500/30';
     case 'RateLimited':
       return 'bg-amber-500/10 text-amber-300 border-amber-500/30';
+    case 'Paused':
+      return 'bg-orange-500/10 text-orange-300 border-orange-500/30';
     case 'SoldOut':
       return 'bg-slate-500/10 text-slate-300 border-slate-500/30';
     case 'Error':

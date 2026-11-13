@@ -53,7 +53,7 @@ FlightSentry-Scraper enforces two independent protection layers before launching
 ### 3.1 Rolling Window Quotas
 * **Hourly Cap (`maxRequestsPerHour`):** Sliding 60-minute window (`createdAt >= now - 1 hour`). Default: `20`.
 * **Daily Cap (`maxRequestsPerDay`):** Sliding 24-hour window (`createdAt >= now - 24 hours`). Default: `150`.
-* **Accounting:** Every scrape attempt that passes authentication and input validation (resulting in `Success`, `SoldOut`, or `Error`) increments the rolling usage counters. Requests rejected with `400`, `401`, or `429` do not consume quota.
+* **Accounting:** Every scrape attempt that passes authentication and input validation (resulting in `Success`, `SoldOut`, or `Error`) increments the rolling usage counters. Requests rejected with `400`, `401`, `429`, or `503` (Global Pause) do not consume quota.
 
 ### 3.2 Anti-Bot Circuit Breaker
 * **Trigger Conditions:** Google Flights returns an HTTP `429`, HTTP `403`, or a CAPTCHA/unusual-traffic interstitial page.
@@ -87,14 +87,15 @@ Returns service liveness, version metadata, circuit breaker state, current FIFO 
 
 | Field | Type | Nullable | Description |
 | :--- | :--- | :--- | :--- |
-| `status` | `string` | No | Service health indicator: `"ok"`, `"rate_limited"`, or `"cooldown"`. |
-| `state` | `string` | No | Explicit operational state: `"ready"`, `"rate_limited"`, or `"cooldown"`. |
-| `version` | `string` | No | Semantic version of the running scraper service from `package.json` (e.g., `"0.2.0"`). |
+| `status` | `string` | No | Service health indicator: `"ok"`, `"rate_limited"`, `"cooldown"`, or `"paused"`. |
+| `state` | `string` | No | Explicit operational state: `"ready"`, `"rate_limited"`, `"cooldown"`, or `"paused"`. |
+| `version` | `string` | No | Semantic version of the running scraper service from `package.json` (e.g., `"0.3.0"`). |
 | `apiVersion` | `string` | No | REST API major version identifier (`"v1"`). |
+| `paused` | `boolean` | No | `true` when Global Pause is enabled by an administrator in the Admin Console (read-only for API key users); `false` otherwise. |
 | `circuitBreakerActive` | `boolean` | No | `true` if Google anti-bot protection recently tripped cooldown; `false` otherwise. |
-| `rateLimited` | `boolean` | No | `true` if rolling hourly or daily scrape quotas are exhausted while cooldown is inactive. |
-| `statusReason` | `string \| null` | Yes | Diagnostic reason when `state` is `"rate_limited"` or `"cooldown"`, or `null` when `"ready"`. |
-| `retryAfter` | `string \| null` | Yes | ISO 8601 UTC timestamp when cooldown or rate limit resets, or `null` when `"ready"`. |
+| `rateLimited` | `boolean` | No | `true` if rolling hourly or daily scrape quotas are exhausted while paused and cooldown are inactive. |
+| `statusReason` | `string \| null` | Yes | Diagnostic reason when `state` is `"paused"`, `"rate_limited"`, or `"cooldown"`, or `null` when `"ready"`. |
+| `retryAfter` | `string \| null` | Yes | ISO 8601 UTC timestamp when cooldown or rate limit resets, or `null` when `"ready"` or `"paused"`. |
 | `queueDepth` | `integer` | No | Number of scrape jobs currently waiting in or executing inside the serial FIFO queue (`>= 0`). |
 | `usage` | `object` | No | Live rolling quota consumption and configured limits. |
 | `usage.hourlyUsed` | `integer` | No | Scrapes executed in the past 60 minutes. |
@@ -178,7 +179,7 @@ Executes a one-way flight search on Google Flights for a given origin, destinati
 
 | Field | Type | Nullable | Present When | Description |
 | :--- | :--- | :--- | :--- | :--- |
-| `status` | `string` | No | Always | Execution outcome enum: `"Success"`, `"SoldOut"`, `"RateLimited"`, or `"Error"`. |
+| `status` | `string` | No | Always | Execution outcome enum: `"Success"`, `"SoldOut"`, `"RateLimited"`, `"Paused"`, or `"Error"`. |
 | `provider` | `string` | No | Always | Fixed provider identifier: `"flightsentry-scraper"`. |
 | `currency` | `string` | No | Always | Normalized 3-letter ISO 4217 currency code of returned prices. |
 | `lowestPrice` | `number \| null` | Yes | Always | Lowest `price` among `itineraries`, or `null` when `itineraries` is empty. |
@@ -235,6 +236,7 @@ Executes a one-way flight search on Google Flights for a given origin, destinati
 | `429 Too Many Requests` | `"RateLimited"` | Rolling hourly/daily quota exhausted **or** anti-bot circuit breaker is active. | Respect `retryAfter` / `Retry-After` header; fail over to next configured data source. |
 | `500 Internal Server Error` | `"Error"` | Unhandled server or SQLite persistence exception. | Log failure and fail over to next data source. |
 | `502 Bad Gateway` | `"Error"` | Chromium navigation timeout, network failure, or upstream Google Flights block/CAPTCHA (which also trips the circuit breaker). | Log failure and fail over to next data source. |
+| `503 Service Unavailable` | `"Paused"` | Scraper is globally paused by an administrator. | Skip scraper and fail over to next configured data source without consuming quota. |
 
 ### 4.4 Complete Request & Response Examples
 
@@ -419,10 +421,11 @@ export interface FlightSentryScraperConfig {
 }
 
 export interface ScraperHealthResponse {
-  status: 'ok' | 'rate_limited' | 'cooldown';
-  state: 'ready' | 'rate_limited' | 'cooldown';
+  status: 'ok' | 'rate_limited' | 'cooldown' | 'paused';
+  state: 'ready' | 'rate_limited' | 'cooldown' | 'paused';
   version: string;
   apiVersion: string;
+  paused: boolean;
   circuitBreakerActive: boolean;
   rateLimited: boolean;
   statusReason: string | null;
@@ -479,7 +482,7 @@ export interface ScraperItinerary {
 }
 
 export interface ScraperQueryResponse {
-  status: 'Success' | 'SoldOut' | 'RateLimited' | 'Error';
+  status: 'Success' | 'SoldOut' | 'RateLimited' | 'Paused' | 'Error';
   provider: 'flightsentry-scraper';
   currency: string;
   lowestPrice: number | null;
@@ -572,7 +575,7 @@ export class FlightSentryScraperClient {
 openapi: 3.1.0
 info:
   title: FlightSentry-Scraper API
-  version: 0.2.0
+  version: 0.3.0
   description: |
     Self-hosted headless Chromium microservice for scraping Google Flights itineraries,
     protected by Bearer API keys, serial FIFO queueing, rolling quotas, and an anti-bot circuit breaker.
@@ -666,6 +669,12 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ScrapeResponse"
+        "503":
+          description: Scraper is globally paused by an administrator
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ScrapeResponse"
 components:
   securitySchemes:
     BearerAuth:
@@ -680,6 +689,7 @@ components:
         - state
         - version
         - apiVersion
+        - paused
         - circuitBreakerActive
         - rateLimited
         - statusReason
@@ -689,16 +699,18 @@ components:
       properties:
         status:
           type: string
-          enum: ["ok", "rate_limited", "cooldown"]
+          enum: ["ok", "rate_limited", "cooldown", "paused"]
         state:
           type: string
-          enum: ["ready", "rate_limited", "cooldown"]
+          enum: ["ready", "rate_limited", "cooldown", "paused"]
         version:
           type: string
-          example: "0.2.0"
+          example: "0.3.0"
         apiVersion:
           type: string
           example: "v1"
+        paused:
+          type: boolean
         circuitBreakerActive:
           type: boolean
         rateLimited:
@@ -935,7 +947,7 @@ components:
       properties:
         status:
           type: string
-          enum: ["Success", "SoldOut", "RateLimited", "Error"]
+          enum: ["Success", "SoldOut", "RateLimited", "Paused", "Error"]
         provider:
           type: string
           enum: ["flightsentry-scraper"]
