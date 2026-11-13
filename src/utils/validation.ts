@@ -33,28 +33,33 @@ function isValidProxyUrl(value: string): boolean {
   }
 }
 
-export const authActionSchema = z.discriminatedUnion('action', [
-  z
-    .object({
+export const authActionSchema = z
+  .discriminatedUnion('action', [
+    z.object({
       action: z.literal('setup'),
       password: z
         .string()
         .min(8, 'Password must be at least 8 characters.')
         .max(128, 'Password cannot exceed 128 characters.'),
       confirmPassword: z.string(),
-    })
-    .refine((data) => data.password === data.confirmPassword, {
-      message: 'Passwords do not match.',
-      path: ['confirmPassword'],
     }),
-  z.object({
-    action: z.literal('login'),
-    password: z.string().min(1, 'Password is required.').max(128),
-  }),
-  z.object({
-    action: z.literal('logout'),
-  }),
-]);
+    z.object({
+      action: z.literal('login'),
+      password: z.string().min(1, 'Password is required.').max(128),
+    }),
+    z.object({
+      action: z.literal('logout'),
+    }),
+  ])
+  .superRefine((data, ctx) => {
+    if (data.action === 'setup' && data.password !== data.confirmPassword) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Passwords do not match.',
+        path: ['confirmPassword'],
+      });
+    }
+  });
 
 export const createApiKeySchema = z.object({
   name: z

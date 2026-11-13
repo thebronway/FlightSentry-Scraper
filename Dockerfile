@@ -1,7 +1,6 @@
 FROM node:20-bookworm-slim
 
-ENV NODE_ENV=production \
-    NEXT_TELEMETRY_DISABLED=1 \
+ENV NEXT_TELEMETRY_DISABLED=1 \
     PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -23,6 +22,8 @@ RUN npm run build \
     && chmod +x /app/entrypoint.sh \
     && mkdir -p /app/data /app/data/chrome-profile \
     && chown -R node:node /app
+
+ENV NODE_ENV=production
 
 EXPOSE 4001
 

@@ -153,16 +153,19 @@ function tryParseFlightGroupArray(
     }
 
     if (origin && destination && price !== null && price > 0) {
-      const rawCarriers = Array.isArray(summary[0]) ? summary[0] : [];
       const rawCarrierNames = Array.isArray(summary[1]) ? summary[1] : [];
 
       let rawAirline =
-        typeof rawCarriers[0] === 'string' ? rawCarriers[0] : '';
+        typeof summary[0] === 'string'
+          ? summary[0]
+          : Array.isArray(summary[0]) && typeof summary[0][0] === 'string'
+            ? summary[0][0]
+            : '';
       let rawAirlineName =
         typeof rawCarrierNames[0] === 'string' ? rawCarrierNames[0] : null;
       let rawFlightNum = '';
 
-      // Leg-level carrier + flight number tuple is typically at firstLeg[22] = [carrier, flightNum, null, carrierName]
+      // Leg-level carrier + flight number tuple is at firstLeg[22] = [carrier, flightNum, null, carrierName]
       if (firstLeg && Array.isArray(firstLeg[22])) {
         const flightMeta = firstLeg[22];
         if (typeof flightMeta[0] === 'string') rawAirline = flightMeta[0];
@@ -276,7 +279,7 @@ export async function parseItinerariesFromDom(
 ): Promise<RouteItinerary[]> {
   const domCards = await page.evaluate(() => {
     const items = Array.from(
-      document.querySelectorAll('ul.Rk10dc > li, li.pIav2d, [role="listitem"]')
+      document.querySelectorAll('ul.Rk10dc > li, li.pIav2d')
     );
 
     return items
