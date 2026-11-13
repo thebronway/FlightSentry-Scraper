@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getPublicSettings } from '@/db/settings';
 import { getQueueDepth } from '@/scraper/queueManager';
-import { getUsageStats } from '@/scraper/rateLimiter';
+import { checkPreScrapeAllowance } from '@/scraper/rateLimiter';
 import type { HealthResponse } from '@/types';
 import { authenticateApiKey } from '@/utils/apiKeyAuth';
+import packageInfo from '../../../../../package.json';
 
 export const dynamic = 'force-dynamic';
 
@@ -14,16 +15,41 @@ export async function GET(req: NextRequest) {
   }
 
   const settings = getPublicSettings();
-  const usage = getUsageStats();
+  const allowance = checkPreScrapeAllowance();
   const queueDepth = getQueueDepth();
 
+  const isCooldown = settings.circuitBreakerActive;
+  const isRateLimited = !isCooldown && !allowance.allowed;
+
+  const status: HealthResponse['status'] = isCooldown
+    ? 'cooldown'
+    : isRateLimited
+      ? 'rate_limited'
+      : 'ok';
+
+  const state: HealthResponse['state'] = isCooldown
+    ? 'cooldown'
+    : isRateLimited
+      ? 'rate_limited'
+      : 'ready';
+
+  const statusReason = isCooldown
+    ? settings.circuitBreakerReason || 'Circuit breaker active due to upstream rate limiting.'
+    : isRateLimited
+      ? allowance.reason
+      : null;
+
   const payload: HealthResponse = {
-    status: settings.circuitBreakerActive ? 'cooldown' : 'ok',
-    version: '0.1.0',
-    circuitBreakerActive: settings.circuitBreakerActive,
-    retryAfter: settings.circuitBreakerUntil,
+    status,
+    state,
+    version: packageInfo.version,
+    apiVersion: 'v1',
+    circuitBreakerActive: isCooldown,
+    rateLimited: isRateLimited,
+    statusReason,
+    retryAfter: isCooldown ? settings.circuitBreakerUntil : allowance.retryAfter,
     queueDepth,
-    usage,
+    usage: allowance.usage,
   };
 
   return NextResponse.json(payload, { status: 200 });

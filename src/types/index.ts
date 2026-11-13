@@ -135,9 +135,13 @@ export interface UsageQuotaStats {
 }
 
 export interface HealthResponse {
-  status: 'ok' | 'cooldown';
+  status: 'ok' | 'rate_limited' | 'cooldown';
+  state: 'ready' | 'rate_limited' | 'cooldown';
   version: string;
+  apiVersion: string;
   circuitBreakerActive: boolean;
+  rateLimited: boolean;
+  statusReason: string | null;
   retryAfter: string | null;
   queueDepth: number;
   usage: UsageQuotaStats;

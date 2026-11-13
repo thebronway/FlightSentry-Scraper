@@ -1,9 +1,16 @@
 # FlightSentry-Scraper Changelog
 
 *Last updated: 2026-11-13*  
-*Current Version: v0.1.5*
+*Current Version: v0.2.0*
 
 ## Changelog
+
+### Release v0.2.0
+- Aligned Admin Console header, footer, quota progress bar colors, and typography with the main FlightSentry application.
+- Added tooltips, **Restore Defaults**, and the `Serial FIFO Queue (Concurrency = 1)` indicator to **Scraper Guardrails & Proxy**.
+- Simplified Chromium engine status label to `Ready`.
+- Updated `GET /api/v1/health` to report the live `package.json` version, `apiVersion` (`"v1"`), `state` (`"ready"`, `"rate_limited"`, or `"cooldown"`), `rateLimited`, and `statusReason`.
+- Updated `docs/API_SPEC.MD` and the embedded OpenAPI 3.1.0 specification for `v0.2.0`.
 
 ### Release v0.1.5
 - Updated `POST /api/v1/scrape` validation and protobuf `tfs` encoding to accept single 3-letter IATA strings or arrays of 1 to 8 unique airport codes in a single browser navigation (1 quota unit), removing server-side metro code expansion tables.

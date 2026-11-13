@@ -1,8 +1,18 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Save, Sliders } from 'lucide-react';
+import { Info, RotateCcw, Save, Sliders } from 'lucide-react';
+import Tooltip from '@/components/common/Tooltip';
 import type { PublicScraperSettings } from '@/types';
+
+const DEFAULT_GUARDRAILS = {
+  minJitterMs: 4000,
+  maxJitterMs: 9000,
+  settleDelayMs: 2500,
+  maxRequestsPerHour: 20,
+  maxRequestsPerDay: 150,
+  cooldownMinutes: 60,
+} as const;
 
 interface GuardrailsSettingsCardProps {
   settings: PublicScraperSettings;
@@ -46,6 +56,27 @@ export function GuardrailsSettingsCard({
     setMaxRequestsPerDay(settings.maxRequestsPerDay);
     setCooldownMinutes(settings.cooldownMinutes);
   }, [settings]);
+
+  const isAlreadyDefault =
+    Number(minJitterMs) === DEFAULT_GUARDRAILS.minJitterMs &&
+    Number(maxJitterMs) === DEFAULT_GUARDRAILS.maxJitterMs &&
+    Number(settleDelayMs) === DEFAULT_GUARDRAILS.settleDelayMs &&
+    Number(maxRequestsPerHour) === DEFAULT_GUARDRAILS.maxRequestsPerHour &&
+    Number(maxRequestsPerDay) === DEFAULT_GUARDRAILS.maxRequestsPerDay &&
+    Number(cooldownMinutes) === DEFAULT_GUARDRAILS.cooldownMinutes;
+
+  function handleRestoreDefaults() {
+    setMinJitterMs(DEFAULT_GUARDRAILS.minJitterMs);
+    setMaxJitterMs(DEFAULT_GUARDRAILS.maxJitterMs);
+    setSettleDelayMs(DEFAULT_GUARDRAILS.settleDelayMs);
+    setMaxRequestsPerHour(DEFAULT_GUARDRAILS.maxRequestsPerHour);
+    setMaxRequestsPerDay(DEFAULT_GUARDRAILS.maxRequestsPerDay);
+    setCooldownMinutes(DEFAULT_GUARDRAILS.cooldownMinutes);
+    setFeedback({
+      type: 'success',
+      text: 'Default guardrail values loaded. Click Save Guardrails to apply.',
+    });
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -104,22 +135,46 @@ export function GuardrailsSettingsCard({
   }
 
   return (
-    <section className="bg-gunmetal-card border border-gunmetal-border rounded-xl p-5">
-      <div className="flex items-center justify-between mb-4">
+    <section className="bg-gunmetal-card border border-gunmetal-border rounded-lg shadow-sm p-4 sm:p-5 transition-colors">
+      <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
         <div className="flex items-center gap-2">
           <Sliders className="h-4 w-4 text-slate-300" />
-          <h2 className="text-sm font-semibold text-slate-100">
+          <h2 className="text-sm font-bold text-slate-200">
             Scraper Guardrails & Proxy
           </h2>
         </div>
+
+        <Tooltip
+          content="Executes one Chromium scrape at a time in arrival order to prevent bot detection"
+          position="top"
+        >
+          <span
+            tabIndex={0}
+            className="inline-flex items-center gap-1.5 text-xs font-mono px-2.5 py-1 rounded-md bg-gunmetal-canvas border border-gunmetal-border text-gunmetal-muted cursor-help"
+          >
+            <span>Serial FIFO Queue (Concurrency = 1)</span>
+            <Info className="h-3 w-3 text-slate-400 flex-shrink-0" />
+          </span>
+        </Tooltip>
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-4 text-xs">
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
           <div>
-            <label className="block text-gunmetal-muted mb-1">
-              Min Jitter (ms)
-            </label>
+            <div className="mb-1">
+              <Tooltip
+                content="Minimum randomized delay (ms) before navigating to Google Flights (Default: 4000ms)"
+                position="top"
+              >
+                <label
+                  tabIndex={0}
+                  className="inline-flex items-center gap-1 text-gunmetal-muted cursor-help"
+                >
+                  <span>Min Jitter (ms)</span>
+                  <Info className="h-3 w-3 text-slate-500 flex-shrink-0" />
+                </label>
+              </Tooltip>
+            </div>
             <input
               type="number"
               min={500}
@@ -127,14 +182,25 @@ export function GuardrailsSettingsCard({
               required
               value={minJitterMs}
               onChange={(e) => setMinJitterMs(Number(e.target.value))}
-              className="w-full px-2.5 py-1.5 rounded-lg bg-gunmetal-canvas border border-gunmetal-border text-slate-100"
+              className="w-full px-2.5 py-1.5 rounded-lg bg-gunmetal-canvas border border-gunmetal-border text-slate-100 font-mono"
             />
           </div>
 
           <div>
-            <label className="block text-gunmetal-muted mb-1">
-              Max Jitter (ms)
-            </label>
+            <div className="mb-1">
+              <Tooltip
+                content="Maximum randomized delay (ms) before navigating to Google Flights (Default: 9000ms)"
+                position="top"
+              >
+                <label
+                  tabIndex={0}
+                  className="inline-flex items-center gap-1 text-gunmetal-muted cursor-help"
+                >
+                  <span>Max Jitter (ms)</span>
+                  <Info className="h-3 w-3 text-slate-500 flex-shrink-0" />
+                </label>
+              </Tooltip>
+            </div>
             <input
               type="number"
               min={500}
@@ -142,14 +208,25 @@ export function GuardrailsSettingsCard({
               required
               value={maxJitterMs}
               onChange={(e) => setMaxJitterMs(Number(e.target.value))}
-              className="w-full px-2.5 py-1.5 rounded-lg bg-gunmetal-canvas border border-gunmetal-border text-slate-100"
+              className="w-full px-2.5 py-1.5 rounded-lg bg-gunmetal-canvas border border-gunmetal-border text-slate-100 font-mono"
             />
           </div>
 
           <div>
-            <label className="block text-gunmetal-muted mb-1">
-              Settle Delay (ms)
-            </label>
+            <div className="mb-1">
+              <Tooltip
+                content="Wait time (ms) after page load for dynamic flight prices to render (Default: 2500ms)"
+                position="top"
+              >
+                <label
+                  tabIndex={0}
+                  className="inline-flex items-center gap-1 text-gunmetal-muted cursor-help"
+                >
+                  <span>Settle Delay (ms)</span>
+                  <Info className="h-3 w-3 text-slate-500 flex-shrink-0" />
+                </label>
+              </Tooltip>
+            </div>
             <input
               type="number"
               min={500}
@@ -157,14 +234,25 @@ export function GuardrailsSettingsCard({
               required
               value={settleDelayMs}
               onChange={(e) => setSettleDelayMs(Number(e.target.value))}
-              className="w-full px-2.5 py-1.5 rounded-lg bg-gunmetal-canvas border border-gunmetal-border text-slate-100"
+              className="w-full px-2.5 py-1.5 rounded-lg bg-gunmetal-canvas border border-gunmetal-border text-slate-100 font-mono"
             />
           </div>
 
           <div>
-            <label className="block text-gunmetal-muted mb-1">
-              Hourly Cap
-            </label>
+            <div className="mb-1">
+              <Tooltip
+                content="Maximum allowed scrape requests per rolling 60-minute window (Default: 20)"
+                position="top"
+              >
+                <label
+                  tabIndex={0}
+                  className="inline-flex items-center gap-1 text-gunmetal-muted cursor-help"
+                >
+                  <span>Hourly Cap</span>
+                  <Info className="h-3 w-3 text-slate-500 flex-shrink-0" />
+                </label>
+              </Tooltip>
+            </div>
             <input
               type="number"
               min={1}
@@ -172,12 +260,25 @@ export function GuardrailsSettingsCard({
               required
               value={maxRequestsPerHour}
               onChange={(e) => setMaxRequestsPerHour(Number(e.target.value))}
-              className="w-full px-2.5 py-1.5 rounded-lg bg-gunmetal-canvas border border-gunmetal-border text-slate-100"
+              className="w-full px-2.5 py-1.5 rounded-lg bg-gunmetal-canvas border border-gunmetal-border text-slate-100 font-mono"
             />
           </div>
 
           <div>
-            <label className="block text-gunmetal-muted mb-1">Daily Cap</label>
+            <div className="mb-1">
+              <Tooltip
+                content="Maximum allowed scrape requests per rolling 24-hour window (Default: 150)"
+                position="top"
+              >
+                <label
+                  tabIndex={0}
+                  className="inline-flex items-center gap-1 text-gunmetal-muted cursor-help"
+                >
+                  <span>Daily Cap</span>
+                  <Info className="h-3 w-3 text-slate-500 flex-shrink-0" />
+                </label>
+              </Tooltip>
+            </div>
             <input
               type="number"
               min={1}
@@ -185,14 +286,25 @@ export function GuardrailsSettingsCard({
               required
               value={maxRequestsPerDay}
               onChange={(e) => setMaxRequestsPerDay(Number(e.target.value))}
-              className="w-full px-2.5 py-1.5 rounded-lg bg-gunmetal-canvas border border-gunmetal-border text-slate-100"
+              className="w-full px-2.5 py-1.5 rounded-lg bg-gunmetal-canvas border border-gunmetal-border text-slate-100 font-mono"
             />
           </div>
 
           <div>
-            <label className="block text-gunmetal-muted mb-1">
-              Cooldown (min)
-            </label>
+            <div className="mb-1">
+              <Tooltip
+                content="Pause duration (minutes) when Google triggers a CAPTCHA or 429 block (Default: 60m)"
+                position="top"
+              >
+                <label
+                  tabIndex={0}
+                  className="inline-flex items-center gap-1 text-gunmetal-muted cursor-help"
+                >
+                  <span>Cooldown (min)</span>
+                  <Info className="h-3 w-3 text-slate-500 flex-shrink-0" />
+                </label>
+              </Tooltip>
+            </div>
             <input
               type="number"
               min={1}
@@ -200,20 +312,37 @@ export function GuardrailsSettingsCard({
               required
               value={cooldownMinutes}
               onChange={(e) => setCooldownMinutes(Number(e.target.value))}
-              className="w-full px-2.5 py-1.5 rounded-lg bg-gunmetal-canvas border border-gunmetal-border text-slate-100"
+              className="w-full px-2.5 py-1.5 rounded-lg bg-gunmetal-canvas border border-gunmetal-border text-slate-100 font-mono"
             />
           </div>
         </div>
 
         <div className="pt-2 border-t border-gunmetal-border/70">
           <div className="flex items-center justify-between mb-1">
-            <label className="text-gunmetal-muted">
-              Outbound Proxy URL (optional)
-            </label>
+            <Tooltip
+              content="Optional HTTP, HTTPS, or SOCKS5 proxy routed for all Chromium requests"
+              position="top"
+            >
+              <label
+                tabIndex={0}
+                className="inline-flex items-center gap-1 text-gunmetal-muted cursor-help"
+              >
+                <span>Outbound Proxy URL (optional)</span>
+                <Info className="h-3 w-3 text-slate-500 flex-shrink-0" />
+              </label>
+            </Tooltip>
             {settings.hasProxy && (
-              <span className="text-emerald-300">
-                Active: {settings.maskedProxyUrl}
-              </span>
+              <Tooltip
+                content="Credentials are masked at rest; enter a new URL to replace"
+                position="top"
+              >
+                <span
+                  tabIndex={0}
+                  className="font-mono text-emerald-300 cursor-help"
+                >
+                  Active: {settings.maskedProxyUrl}
+                </span>
+              </Tooltip>
             )}
           </div>
           <input
@@ -226,24 +355,39 @@ export function GuardrailsSettingsCard({
                 ? 'Enter new proxy URL to replace existing...'
                 : 'http://user:pass@proxy.example.com:8080'
             }
-            className="w-full px-2.5 py-1.5 rounded-lg bg-gunmetal-canvas border border-gunmetal-border text-slate-100 placeholder-zinc-600 disabled:opacity-40"
+            className="w-full px-2.5 py-1.5 rounded-lg bg-gunmetal-canvas border border-gunmetal-border text-slate-100 font-mono placeholder-zinc-600 disabled:opacity-40"
           />
           {settings.hasProxy && (
-            <label className="mt-1.5 inline-flex items-center gap-1.5 text-gunmetal-muted cursor-pointer">
-              <input
-                type="checkbox"
-                checked={clearProxy}
-                onChange={(e) => setClearProxy(e.target.checked)}
-                className="rounded border-gunmetal-border bg-gunmetal-canvas"
-              />
-              Remove configured proxy on save
-            </label>
+            <div className="mt-1.5">
+              <Tooltip
+                content="Clears the saved outbound proxy and reverts to direct connections on save"
+                position="top"
+              >
+                <label className="inline-flex items-center gap-1.5 text-gunmetal-muted cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={clearProxy}
+                    onChange={(e) => setClearProxy(e.target.checked)}
+                    className="rounded border-gunmetal-border bg-gunmetal-canvas"
+                  />
+                  <span>Remove configured proxy on save</span>
+                </label>
+              </Tooltip>
+            </div>
           )}
         </div>
 
         <details className="pt-2 border-t border-gunmetal-border/70">
           <summary className="cursor-pointer text-slate-300 font-medium select-none">
-            Change Admin Password
+            <Tooltip
+              content="Rotate the console administrator password and invalidate existing sessions"
+              position="top"
+            >
+              <span className="inline-flex items-center gap-1">
+                <span>Change Admin Password</span>
+                <Info className="h-3 w-3 text-slate-500 flex-shrink-0" />
+              </span>
+            </Tooltip>
           </summary>
           <div className="mt-3 grid grid-cols-1 sm:grid-cols-3 gap-2.5">
             <input
@@ -282,14 +426,36 @@ export function GuardrailsSettingsCard({
           </div>
         )}
 
-        <button
-          type="submit"
-          disabled={saving}
-          className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg font-medium bg-slate-100 text-zinc-950 hover:bg-white disabled:opacity-50 transition-colors"
-        >
-          <Save className="h-3.5 w-3.5" />
-          {saving ? 'Saving...' : 'Save Guardrails'}
-        </button>
+        <div className="flex flex-wrap items-center gap-2.5">
+          <Tooltip
+            content="Persist updated guardrail and proxy settings to SQLite"
+            position="top"
+          >
+            <button
+              type="submit"
+              disabled={saving}
+              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg font-medium bg-slate-100 text-zinc-950 hover:bg-white disabled:opacity-50 transition-colors"
+            >
+              <Save className="h-3.5 w-3.5" />
+              {saving ? 'Saving...' : 'Save Guardrails'}
+            </button>
+          </Tooltip>
+
+          <Tooltip
+            content="Reset jitter, settle delay, rate caps, and cooldown to recommended defaults"
+            position="top"
+          >
+            <button
+              type="button"
+              onClick={handleRestoreDefaults}
+              disabled={saving || isAlreadyDefault}
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg font-medium bg-gunmetal-canvas hover:bg-zinc-800 border border-gunmetal-border text-slate-200 disabled:opacity-50 transition-colors"
+            >
+              <RotateCcw className="h-3.5 w-3.5" />
+              Restore Defaults
+            </button>
+          </Tooltip>
+        </div>
       </form>
     </section>
   );

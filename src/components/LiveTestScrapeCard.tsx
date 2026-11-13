@@ -62,11 +62,11 @@ export function LiveTestScrapeCard({
   }
 
   return (
-    <section className="bg-gunmetal-card border border-gunmetal-border rounded-xl p-5">
+    <section className="bg-gunmetal-card border border-gunmetal-border rounded-lg shadow-sm p-4 sm:p-5 transition-colors">
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2">
           <Plane className="h-4 w-4 text-slate-300" />
-          <h2 className="text-sm font-semibold text-slate-100">
+          <h2 className="text-sm font-bold text-slate-200">
             Live Test Scrape
           </h2>
         </div>

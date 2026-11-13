@@ -54,7 +54,7 @@ export function AuthGateScreen({
 
   return (
     <div className="flex-1 flex items-center justify-center px-4 py-12">
-      <div className="w-full max-w-md bg-gunmetal-card border border-gunmetal-border rounded-xl p-6 shadow-xl">
+      <div className="w-full max-w-md bg-gunmetal-card border border-gunmetal-border rounded-lg p-6 shadow-xl">
         <div className="flex items-center gap-3 mb-4">
           <div className="h-10 w-10 rounded-lg bg-gunmetal-canvas border border-gunmetal-border flex items-center justify-center text-slate-200">
             {isSetup ? (

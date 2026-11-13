@@ -27,6 +27,38 @@ export function EngineStatusCard({
     Math.round((usage.dailyUsed / Math.max(1, settings.maxRequestsPerDay)) * 100)
   );
 
+  const hourlyBarColor = settings.circuitBreakerActive
+    ? 'bg-amber-600'
+    : hourlyPct >= 90
+      ? 'bg-red-500'
+      : hourlyPct >= 75
+        ? 'bg-yellow-400'
+        : 'bg-sky-500';
+
+  const hourlyUsedColor = settings.circuitBreakerActive
+    ? 'text-slate-200'
+    : hourlyPct >= 90
+      ? 'text-red-400'
+      : hourlyPct >= 75
+        ? 'text-yellow-300'
+        : 'text-slate-200';
+
+  const dailyBarColor = settings.circuitBreakerActive
+    ? 'bg-amber-600'
+    : dailyPct >= 90
+      ? 'bg-red-500'
+      : dailyPct >= 75
+        ? 'bg-yellow-400'
+        : 'bg-sky-500';
+
+  const dailyUsedColor = settings.circuitBreakerActive
+    ? 'text-slate-200'
+    : dailyPct >= 90
+      ? 'text-red-400'
+      : dailyPct >= 75
+        ? 'text-yellow-300'
+        : 'text-slate-200';
+
   async function handleResetCooldown() {
     setResetting(true);
     setError(null);
@@ -48,17 +80,14 @@ export function EngineStatusCard({
   }
 
   return (
-    <section className="bg-gunmetal-card border border-gunmetal-border rounded-xl p-5">
+    <section className="bg-gunmetal-card border border-gunmetal-border rounded-lg shadow-sm p-4 sm:p-5 transition-colors">
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2">
           <Activity className="h-4 w-4 text-slate-300" />
-          <h2 className="text-sm font-semibold text-slate-100">
+          <h2 className="text-sm font-bold text-slate-200">
             Engine Status & Circuit Breaker
           </h2>
         </div>
-        <span className="text-xs text-gunmetal-muted">
-          Serial FIFO Queue (Concurrency = 1)
-        </span>
       </div>
 
       {settings.circuitBreakerActive && (
@@ -108,7 +137,7 @@ export function EngineStatusCard({
           <div className="text-xs text-gunmetal-muted">Chromium Engine</div>
           <div className="mt-1 flex items-center justify-between">
             <span className="text-sm font-semibold text-slate-100">
-              {settings.circuitBreakerActive ? 'Cooldown Hold' : 'Armed / Ready'}
+              {settings.circuitBreakerActive ? 'Cooldown' : 'Ready'}
             </span>
             <span className="text-xs text-gunmetal-muted">
               {settings.hasProxy ? 'Proxy On' : 'Direct'}
@@ -120,14 +149,13 @@ export function EngineStatusCard({
           <div className="flex items-center justify-between text-xs">
             <span className="text-gunmetal-muted">Rolling 1-Hour Quota</span>
             <span className="text-slate-200 font-medium">
-              {usage.hourlyUsed} / {settings.maxRequestsPerHour}
+              <span className={hourlyUsedColor}>{usage.hourlyUsed}</span> /{' '}
+              {settings.maxRequestsPerHour}
             </span>
           </div>
-          <div className="mt-2 h-2 rounded-full bg-zinc-800 overflow-hidden">
+          <div className="mt-2 h-2 rounded-full bg-gunmetal-card border border-gunmetal-border overflow-hidden">
             <div
-              className={`h-full transition-all ${
-                hourlyPct >= 90 ? 'bg-amber-400' : 'bg-emerald-400'
-              }`}
+              className={`h-full rounded-full transition-all ${hourlyBarColor}`}
               style={{ width: `${hourlyPct}%` }}
             />
           </div>
@@ -137,14 +165,13 @@ export function EngineStatusCard({
           <div className="flex items-center justify-between text-xs">
             <span className="text-gunmetal-muted">Rolling 24-Hour Quota</span>
             <span className="text-slate-200 font-medium">
-              {usage.dailyUsed} / {settings.maxRequestsPerDay}
+              <span className={dailyUsedColor}>{usage.dailyUsed}</span> /{' '}
+              {settings.maxRequestsPerDay}
             </span>
           </div>
-          <div className="mt-2 h-2 rounded-full bg-zinc-800 overflow-hidden">
+          <div className="mt-2 h-2 rounded-full bg-gunmetal-card border border-gunmetal-border overflow-hidden">
             <div
-              className={`h-full transition-all ${
-                dailyPct >= 90 ? 'bg-amber-400' : 'bg-emerald-400'
-              }`}
+              className={`h-full rounded-full transition-all ${dailyBarColor}`}
               style={{ width: `${dailyPct}%` }}
             />
           </div>

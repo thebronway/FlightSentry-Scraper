@@ -1,6 +1,6 @@
 # FlightSentry-Scraper REST API Specification
 
-**Version:** `v0.1.5`
+**Version:** `v0.2.0`
 **API Base Path:** `/api/v1`  
 **Specification Standards:** OpenAPI 3.1.0 · RFC 9110 (HTTP Semantics) · RFC 6750 (Bearer Token Usage) · RFC 9457 (Problem Details) · ISO 8601 · ISO 4217 · IATA
 
@@ -88,20 +88,20 @@ Returns service liveness, version metadata, circuit breaker state, current FIFO 
 
 | Field | Type | Nullable | Description |
 | :--- | :--- | :--- | :--- |
-| `status` | `string` | No | Service health indicator. Always `"ok"` when operational. |
-| `version` | `string` | No | Semantic version of the running scraper service (e.g., `"0.1.0"`). |
-| `timestamp` | `string` | No | Current server UTC timestamp in ISO 8601 format (`YYYY-MM-DDTHH:mm:ss.sssZ`). |
+| `status` | `string` | No | Service health indicator: `"ok"`, `"rate_limited"`, or `"cooldown"`. |
+| `state` | `string` | No | Explicit operational state: `"ready"`, `"rate_limited"`, or `"cooldown"`. |
+| `version` | `string` | No | Semantic version of the running scraper service from `package.json` (e.g., `"0.2.0"`). |
+| `apiVersion` | `string` | No | REST API major version identifier (`"v1"`). |
 | `circuitBreakerActive` | `boolean` | No | `true` if Google anti-bot protection recently tripped cooldown; `false` otherwise. |
-| `cooldownUntil` | `string \| null` | Yes | ISO 8601 UTC timestamp when active cooldown expires, or `null` when inactive. |
+| `rateLimited` | `boolean` | No | `true` if rolling hourly or daily scrape quotas are exhausted while cooldown is inactive. |
+| `statusReason` | `string \| null` | Yes | Diagnostic reason when `state` is `"rate_limited"` or `"cooldown"`, or `null` when `"ready"`. |
+| `retryAfter` | `string \| null` | Yes | ISO 8601 UTC timestamp when cooldown or rate limit resets, or `null` when `"ready"`. |
 | `queueDepth` | `integer` | No | Number of scrape jobs currently waiting in or executing inside the serial FIFO queue (`>= 0`). |
-| `limits` | `object` | No | Configured rolling rate limits. |
-| `limits.maxRequestsPerHour` | `integer` | No | Maximum allowed scrapes per rolling 60-minute window. |
-| `limits.maxRequestsPerDay` | `integer` | No | Maximum allowed scrapes per rolling 24-hour window. |
-| `usage` | `object` | No | Live rolling quota consumption and remaining allowance. |
-| `usage.requestsLastHour` | `integer` | No | Scrapes executed in the past 60 minutes. |
-| `usage.requestsLast24Hours` | `integer` | No | Scrapes executed in the past 24 hours. |
-| `usage.remainingHour` | `integer` | No | `max(0, maxRequestsPerHour - requestsLastHour)`. |
-| `usage.remainingDay` | `integer` | No | `max(0, maxRequestsPerDay - requestsLast24Hours)`. |
+| `usage` | `object` | No | Live rolling quota consumption and configured limits. |
+| `usage.hourlyUsed` | `integer` | No | Scrapes executed in the past 60 minutes. |
+| `usage.hourlyLimit` | `integer` | No | Maximum allowed scrapes per rolling 60-minute window. |
+| `usage.dailyUsed` | `integer` | No | Scrapes executed in the past 24 hours. |
+| `usage.dailyLimit` | `integer` | No | Maximum allowed scrapes per rolling 24-hour window. |
 
 #### Example Request
 ```bash
@@ -420,21 +420,20 @@ export interface FlightSentryScraperConfig {
 }
 
 export interface ScraperHealthResponse {
-  status: 'ok';
+  status: 'ok' | 'rate_limited' | 'cooldown';
+  state: 'ready' | 'rate_limited' | 'cooldown';
   version: string;
-  timestamp: string;
+  apiVersion: string;
   circuitBreakerActive: boolean;
-  cooldownUntil: string | null;
+  rateLimited: boolean;
+  statusReason: string | null;
+  retryAfter: string | null;
   queueDepth: number;
-  limits: {
-    maxRequestsPerHour: number;
-    maxRequestsPerDay: number;
-  };
   usage: {
-    requestsLastHour: number;
-    requestsLast24Hours: number;
-    remainingHour: number;
-    remainingDay: number;
+    hourlyUsed: number;
+    hourlyLimit: number;
+    dailyUsed: number;
+    dailyLimit: number;
   };
 }
 export interface ScraperQueryRequest {
@@ -574,7 +573,7 @@ export class FlightSentryScraperClient {
 openapi: 3.1.0
 info:
   title: FlightSentry-Scraper API
-  version: 0.1.5
+  version: 0.2.0
   description: |
     Self-hosted headless Chromium microservice for scraping Google Flights itineraries,
     protected by Bearer API keys, serial FIFO queueing, rolling quotas, and an anti-bot circuit breaker.
@@ -679,63 +678,60 @@ components:
       type: object
       required:
         - status
+        - state
         - version
-        - timestamp
+        - apiVersion
         - circuitBreakerActive
-        - cooldownUntil
+        - rateLimited
+        - statusReason
+        - retryAfter
         - queueDepth
-        - limits
         - usage
       properties:
         status:
           type: string
-          enum: ["ok"]
+          enum: ["ok", "rate_limited", "cooldown"]
+        state:
+          type: string
+          enum: ["ready", "rate_limited", "cooldown"]
         version:
           type: string
-          example: "0.1.0"
-        timestamp:
+          example: "0.2.0"
+        apiVersion:
           type: string
-          format: date-time
+          example: "v1"
         circuitBreakerActive:
           type: boolean
-        cooldownUntil:
+        rateLimited:
+          type: boolean
+        statusReason:
+          type: ["string", "null"]
+        retryAfter:
           type: ["string", "null"]
           format: date-time
         queueDepth:
           type: integer
           minimum: 0
-        limits:
-          type: object
-          required:
-            - maxRequestsPerHour
-            - maxRequestsPerDay
-          properties:
-            maxRequestsPerHour:
-              type: integer
-              minimum: 1
-            maxRequestsPerDay:
-              type: integer
-              minimum: 1
         usage:
           type: object
           required:
-            - requestsLastHour
-            - requestsLast24Hours
-            - remainingHour
-            - remainingDay
+            - hourlyUsed
+            - hourlyLimit
+            - dailyUsed
+            - dailyLimit
           properties:
-            requestsLastHour:
+            hourlyUsed:
               type: integer
               minimum: 0
-            requestsLast24Hours:
+            hourlyLimit:
+              type: integer
+              minimum: 1
+            dailyUsed:
               type: integer
               minimum: 0
-            remainingHour:
+            dailyLimit:
               type: integer
-              minimum: 0
-            remainingDay:
-              type: integer
-              minimum: 0
+              minimum: 1
     ScrapeRequest:
       type: object
       required:
@@ -1006,4 +1002,4 @@ components:
 ---
 
 ### 7.3 End of Specification
-*Document Version: `v0.1.5` · FlightSentry-Scraper REST API*
+*Document Version: `v0.2.0` · FlightSentry-Scraper REST API*
