@@ -1,9 +1,13 @@
 # FlightSentry-Scraper Changelog
 
 *Last updated: 2026-11-13*  
-*Current Version: v0.3.5*
+*Current Version: v0.4.0*
 
 ## Changelog
+
+### Release v0.4.0
+- Added protobuf query token inspection (`shoppingTokenInspector.ts`) to ignore pre-filter `GetShoppingResults` responses and wait for post-filter results when `cabinClass` is `economy` and `fareTier` is `Standard`.
+- Isolated captured payloads per navigation attempt in `googleFlightsScraper.ts` so unfiltered SSR `ds:1` data is not mixed with post-filter XHR responses.
 
 ### Release v0.3.5
 - Replaced the carry-on bag proxy filter (`field 13 -> field 2 = 1`) in `urlBuilder.ts` with Google Flights' native `Economy (exclude Basic)` protobuf parameter (`field 25 = 1` + `tfu=EgYIABAAGAA`), properly excluding Basic Economy fares across carriers that include a free carry-on bag (American, Delta, Alaska, JetBlue, Southwest).

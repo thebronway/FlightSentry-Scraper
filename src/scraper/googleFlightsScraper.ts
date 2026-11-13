@@ -15,9 +15,11 @@ import {
   checkPreScrapeAllowance,
   inspectForUpstreamBlock,
 } from './rateLimiter';
+import { inspectShoppingResponse } from './shoppingTokenInspector';
 import { buildGoogleFlightsUrl } from './urlBuilder';
 
 const HARD_SCRAPE_TIMEOUT_MS = 30_000;
+const POST_FILTER_WAIT_TIMEOUT_MS = 10_000;
 const MAX_RAW_PAYLOAD_BYTES = 50 * 1024; // 50 KB cap
 
 export interface ScrapeExecutionResult {
@@ -115,65 +117,201 @@ async function performBrowserScrape(
   }
 
   const settings = getSettings();
-  const targetUrl = buildGoogleFlightsUrl(req);
-  const interceptedPayloads: string[] = [];
-  let mainHttpStatus: number | null = null;
+  const requireBasicExclusion =
+    req.cabinClass === 'economy' && req.fareTier === 'Standard';
+  const targetUrl = buildGoogleFlightsUrl(req, {
+    excludeBasicEconomy: requireBasicExclusion,
+  });
+  let interceptedPayloads: string[] = [];
   let page: Page | null = null;
+
+  const runNavigationAttempt = async (
+    activePage: Page,
+    navigationUrl: string,
+    enforceBasicExclusion: boolean
+  ) => {
+    const postFilterShoppingPayloads: string[] = [];
+    const allShoppingPayloads: string[] = [];
+    const otherDataPayloads: string[] = [];
+    let sawUnfilteredShopping = false;
+    let initialUnfilteredSignature: string | null = null;
+    let resolvePostFilter: (() => void) | null = null;
+
+    const postFilterReadyPromise = new Promise<void>((resolve) => {
+      resolvePostFilter = resolve;
+    });
+
+    const onResponse = async (res: import('playwright').Response) => {
+      try {
+        const resUrl = res.url();
+        const isShoppingRpc = resUrl.includes('GetShoppingResults');
+        const isFrontendDataRpc = resUrl.includes('/_/FlightsFrontendUi/data/');
+        if (!isShoppingRpc && !isFrontendDataRpc) {
+          return;
+        }
+
+        const bodyText = await res.text();
+        if (!bodyText || bodyText.length <= 100) {
+          return;
+        }
+
+        if (!isShoppingRpc) {
+          otherDataPayloads.push(bodyText);
+          return;
+        }
+
+        allShoppingPayloads.push(bodyText);
+
+        if (!enforceBasicExclusion) {
+          postFilterShoppingPayloads.push(bodyText);
+          resolvePostFilter?.();
+          return;
+        }
+
+        const postData = res.request().postData();
+        const inspection = inspectShoppingResponse(bodyText, postData);
+
+        if (inspection.hasExplicitExclusion) {
+          postFilterShoppingPayloads.push(bodyText);
+          resolvePostFilter?.();
+          return;
+        }
+
+        if (inspection.isBaselineUnfilteredEconomy) {
+          sawUnfilteredShopping = true;
+          if (!initialUnfilteredSignature) {
+            initialUnfilteredSignature = inspection.filterSignature;
+          }
+          return;
+        }
+
+        if (
+          sawUnfilteredShopping &&
+          (!inspection.hasValidQueryToken ||
+            inspection.filterSignature !== initialUnfilteredSignature)
+        ) {
+          postFilterShoppingPayloads.push(bodyText);
+          resolvePostFilter?.();
+          return;
+        }
+
+        if (!inspection.hasValidQueryToken) {
+          postFilterShoppingPayloads.push(bodyText);
+          resolvePostFilter?.();
+        }
+      } catch {
+        // Ignore streaming or aborted responses
+      }
+    };
+
+    activePage.on('response', onResponse);
+
+    try {
+      const navResponse = await activePage.goto(navigationUrl, {
+        waitUntil: 'domcontentloaded',
+        timeout: HARD_SCRAPE_TIMEOUT_MS,
+      });
+      const httpStatus = navResponse ? navResponse.status() : null;
+
+      await dismissConsentIfPresent(activePage);
+
+      await activePage
+        .waitForLoadState('networkidle', { timeout: 12_000 })
+        .catch(() => null);
+
+      await activePage.waitForTimeout(settings.settleDelayMs);
+
+      if (
+        enforceBasicExclusion &&
+        postFilterShoppingPayloads.length === 0 &&
+        sawUnfilteredShopping
+      ) {
+        await Promise.race([
+          postFilterReadyPromise,
+          activePage.waitForTimeout(POST_FILTER_WAIT_TIMEOUT_MS),
+        ]);
+      }
+
+      const html = await activePage.content();
+      const ds1Payload = extractDs1JsonFromHtml(html);
+
+      let structuredCandidates: string[] = [];
+      let rawDiagnosticPayloads: string[] = [];
+
+      if (enforceBasicExclusion) {
+        if (postFilterShoppingPayloads.length > 0) {
+          const latestFiltered =
+            postFilterShoppingPayloads[postFilterShoppingPayloads.length - 1];
+          structuredCandidates = [latestFiltered];
+          rawDiagnosticPayloads = [latestFiltered];
+        } else if (sawUnfilteredShopping) {
+          // Pre-filter GetShoppingResults fired, but post-filter response did not arrive in time;
+          // do not parse pre-filter XHR/SSR payloads that would leak Basic Economy fares.
+          rawDiagnosticPayloads = [...allShoppingPayloads, ...otherDataPayloads];
+        } else {
+          if (ds1Payload) {
+            structuredCandidates.push(ds1Payload);
+          }
+          structuredCandidates.push(...otherDataPayloads);
+          rawDiagnosticPayloads = [...structuredCandidates];
+        }
+      } else {
+        if (allShoppingPayloads.length > 0) {
+          const latestShopping =
+            allShoppingPayloads[allShoppingPayloads.length - 1];
+          structuredCandidates = [latestShopping];
+          rawDiagnosticPayloads = [latestShopping];
+        } else {
+          if (ds1Payload) {
+            structuredCandidates.push(ds1Payload);
+          }
+          structuredCandidates.push(...otherDataPayloads);
+          rawDiagnosticPayloads = [...structuredCandidates];
+        }
+      }
+
+      let extracted = parseStructuredPayload(
+        structuredCandidates,
+        req.departureDate
+      );
+
+      if (
+        extracted.length === 0 &&
+        !(
+          enforceBasicExclusion &&
+          sawUnfilteredShopping &&
+          postFilterShoppingPayloads.length === 0
+        )
+      ) {
+        extracted = await parseItinerariesFromDom(activePage, req);
+      }
+
+      return {
+        httpStatus,
+        itineraries: extracted,
+        rawPayloads: rawDiagnosticPayloads,
+      };
+    } finally {
+      activePage.off('response', onResponse);
+    }
+  };
 
   try {
     page = await openIsolatedGooglePage();
     page.setDefaultTimeout(HARD_SCRAPE_TIMEOUT_MS);
     page.setDefaultNavigationTimeout(HARD_SCRAPE_TIMEOUT_MS);
 
-    page.on('response', async (res) => {
-      try {
-        const resUrl = res.url();
-        if (
-          resUrl.includes('/_/FlightsFrontendUi/data/') ||
-          resUrl.includes('GetShoppingResults')
-        ) {
-          const bodyText = await res.text();
-          if (bodyText && bodyText.length > 100) {
-            interceptedPayloads.push(bodyText);
-          }
-        }
-      } catch {
-        // Ignore streaming or aborted responses
-      }
-    });
-
-    const navResponse = await page.goto(targetUrl, {
-      waitUntil: 'domcontentloaded',
-      timeout: HARD_SCRAPE_TIMEOUT_MS,
-    });
-    mainHttpStatus = navResponse ? navResponse.status() : null;
-
-    await dismissConsentIfPresent(page);
-
-    await page
-      .waitForLoadState('networkidle', { timeout: 12_000 })
-      .catch(() => null);
-
-    await page.waitForTimeout(settings.settleDelayMs);
-
-    const html = await page.content();
-    const ds1Payload = extractDs1JsonFromHtml(html);
-    if (ds1Payload) {
-      interceptedPayloads.unshift(ds1Payload);
-    }
-
-    let itineraries = parseStructuredPayload(
-      interceptedPayloads,
-      req.departureDate
+    const primaryAttempt = await runNavigationAttempt(
+      page,
+      targetUrl,
+      requireBasicExclusion
     );
-
-    if (itineraries.length === 0) {
-      itineraries = await parseItinerariesFromDom(page, req);
-    }
+    let itineraries = primaryAttempt.itineraries;
+    interceptedPayloads = primaryAttempt.rawPayloads;
 
     const blockCheck = await inspectForUpstreamBlock(
       page,
-      mainHttpStatus,
+      primaryAttempt.httpStatus,
       itineraries.length > 0
     );
 
@@ -226,38 +364,17 @@ async function performBrowserScrape(
       const fallbackUrl = buildGoogleFlightsUrl(req, {
         excludeBasicEconomy: false,
       });
-      const fallbackNav = await page.goto(fallbackUrl, {
-        waitUntil: 'domcontentloaded',
-        timeout: HARD_SCRAPE_TIMEOUT_MS,
-      });
-      const fallbackHttpStatus = fallbackNav ? fallbackNav.status() : null;
-
-      await dismissConsentIfPresent(page);
-
-      await page
-        .waitForLoadState('networkidle', { timeout: 12_000 })
-        .catch(() => null);
-
-      await page.waitForTimeout(settings.settleDelayMs);
-
-      const fallbackHtml = await page.content();
-      const fallbackDs1 = extractDs1JsonFromHtml(fallbackHtml);
-      if (fallbackDs1) {
-        interceptedPayloads.unshift(fallbackDs1);
-      }
-
-      itineraries = parseStructuredPayload(
-        interceptedPayloads,
-        req.departureDate
+      const fallbackAttempt = await runNavigationAttempt(
+        page,
+        fallbackUrl,
+        false
       );
-
-      if (itineraries.length === 0) {
-        itineraries = await parseItinerariesFromDom(page, req);
-      }
+      itineraries = fallbackAttempt.itineraries;
+      interceptedPayloads = fallbackAttempt.rawPayloads;
 
       const fallbackBlockCheck = await inspectForUpstreamBlock(
         page,
-        fallbackHttpStatus,
+        fallbackAttempt.httpStatus,
         itineraries.length > 0
       );
 

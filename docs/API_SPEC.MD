@@ -89,7 +89,7 @@ Returns service liveness, version metadata, circuit breaker state, current FIFO 
 | :--- | :--- | :--- | :--- |
 | `status` | `string` | No | Service health indicator: `"ok"`, `"rate_limited"`, `"cooldown"`, or `"paused"`. |
 | `state` | `string` | No | Explicit operational state: `"ready"`, `"rate_limited"`, `"cooldown"`, or `"paused"`. |
-| `version` | `string` | No | Semantic version of the running scraper service from `package.json` (e.g., `"0.3.5"`). |
+| `version` | `string` | No | Semantic version of the running scraper service from `package.json` (e.g., `"0.4.0"`). |
 | `apiVersion` | `string` | No | REST API major version identifier (`"v1"`). |
 | `paused` | `boolean` | No | `true` when Global Pause is enabled by an administrator in the Admin Console (read-only for API key users); `false` otherwise. |
 | `circuitBreakerActive` | `boolean` | No | `true` if Google anti-bot protection recently tripped cooldown; `false` otherwise. |
@@ -575,7 +575,7 @@ export class FlightSentryScraperClient {
 openapi: 3.1.0
 info:
   title: FlightSentry-Scraper API
-  version: 0.3.5
+  version: 0.4.0
   description: |
     Self-hosted headless Chromium microservice for scraping Google Flights itineraries,
     protected by Bearer API keys, serial FIFO queueing, rolling quotas, and an anti-bot circuit breaker.
@@ -705,7 +705,7 @@ components:
           enum: ["ready", "rate_limited", "cooldown", "paused"]
         version:
           type: string
-          example: "0.3.5"
+          example: "0.4.0"
         apiVersion:
           type: string
           example: "v1"
