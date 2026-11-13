@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-const AIRPORT_LIST_REGEX = /^[A-Z]{3}(,[A-Z]{3})*$/;
+const IATA_AIRPORT_REGEX = /^[A-Z]{3}$/;
 const IATA_CARRIER_REGEX = /^[A-Z0-9]{2}$/;
 const FLIGHT_NUMBER_REGEX = /^[A-Za-z0-9]{1,8}$/;
 const DATE_YYYY_MM_DD_REGEX = /^\d{4}-\d{2}-\d{2}$/;
@@ -123,23 +123,27 @@ export const updateSettingsSchema = z
     }
   );
 
+const singleAirportSchema = z
+  .string()
+  .trim()
+  .toUpperCase()
+  .regex(
+    IATA_AIRPORT_REGEX,
+    'Airport code must be a 3-letter uppercase IATA code (e.g. DFW).'
+  );
+
+const airportLocationSchema = z.union([
+  singleAirportSchema,
+  z
+    .array(singleAirportSchema)
+    .min(1, 'At least 1 airport code is required.')
+    .max(8, 'At most 8 unique airport codes are allowed.')
+    .transform((codes) => Array.from(new Set(codes))),
+]);
+
 export const scrapeRequestSchema = z.object({
-  origin: z
-    .string()
-    .trim()
-    .toUpperCase()
-    .regex(
-      AIRPORT_LIST_REGEX,
-      'Origin must be a 3-letter IATA/metro code or comma-separated list (e.g. WAS or DCA,IAD).'
-    ),
-  destination: z
-    .string()
-    .trim()
-    .toUpperCase()
-    .regex(
-      AIRPORT_LIST_REGEX,
-      'Destination must be a 3-letter IATA/metro code or comma-separated list (e.g. SFO).'
-    ),
+  origin: airportLocationSchema,
+  destination: airportLocationSchema,
   departureDate: z
     .string()
     .trim()
@@ -175,7 +179,8 @@ export const scrapeRequestSchema = z.object({
     .string()
     .trim()
     .toUpperCase()
-    .regex(FLIGHT_NUMBER_REGEX)
+    .transform((val) => val.replace(/\s+/g, ''))
+    .pipe(z.string().regex(FLIGHT_NUMBER_REGEX))
     .optional(),
   includeRaw: z.boolean().default(false),
 });

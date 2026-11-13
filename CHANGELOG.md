@@ -1,9 +1,16 @@
 # FlightSentry-Scraper Changelog
 
 *Last updated: 2026-11-13*  
-*Current Version: v0.1.0*
+*Current Version: v0.1.5*
 
 ## Changelog
+
+### Release v0.1.5
+- Updated `POST /api/v1/scrape` validation and protobuf `tfs` encoding to accept single 3-letter IATA strings or arrays of 1 to 8 unique airport codes in a single browser navigation (1 quota unit), removing server-side metro code expansion tables.
+- Added `maxLayoverMinutes` and per-segment `legs` (`RouteSegment[]`) extraction to `RouteItinerary` during `ds:1` parsing.
+- Updated `ScrapeRequest.flightNumber` filtering to match against any operating segment in `itinerary.legs` while preserving segment 1 on top-level `airline` and `flightNumber`.
+- Fixed `cleanFlightNumber` to preserve full numeric flight designators without stripping leading digits.
+- Updated `docs/API_SPEC.MD` and the embedded OpenAPI 3.1.0 specification for `v0.1.5`.
 
 ### Release v0.1.0
 - Initial release of FlightSentry-Scraper as a standalone Dockerized Next.js 14 and Playwright Chromium microservice.

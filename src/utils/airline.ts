@@ -165,6 +165,10 @@ export function cleanFlightNumber(
   const cleaned = rawFlightNumber.trim().toUpperCase().replace(/\s+/g, '');
   if (!cleaned) return '';
 
+  if (/^\d+[A-Z]?$/.test(cleaned)) {
+    return cleaned;
+  }
+
   if (carrierCode) {
     const normalizedCarrier = normalizeAirlineCode(carrierCode);
     if (cleaned.startsWith(normalizedCarrier) && cleaned.length > 2) {
@@ -172,7 +176,7 @@ export function cleanFlightNumber(
     }
   }
 
-  const match = cleaned.match(/^[A-Z0-9]{2}(\d+[A-Z]?)$/);
+  const match = cleaned.match(/^(?=[A-Z0-9]*[A-Z])[A-Z0-9]{2}(\d+[A-Z]?)$/);
   if (match?.[1]) {
     return match[1];
   }

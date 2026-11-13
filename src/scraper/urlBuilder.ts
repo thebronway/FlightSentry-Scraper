@@ -1,5 +1,16 @@
 import type { CabinClass, ScrapeRequest } from '@/types';
-import { expandLocationCodes } from '@/utils/coLocations';
+
+function normalizeAirportCodes(input: string | string[]): string[] {
+  const rawList = Array.isArray(input) ? input : [input];
+  const unique: string[] = [];
+  for (const item of rawList) {
+    const code = item.trim().toUpperCase();
+    if (code && !unique.includes(code)) {
+      unique.push(code);
+    }
+  }
+  return unique;
+}
 
 function encodeVarint(value: number): Buffer {
   const bytes: number[] = [];
@@ -46,8 +57,8 @@ function encodeCabinEnum(cabin: CabinClass): number {
 }
 
 export function buildGoogleFlightsUrl(req: ScrapeRequest): string {
-  const originAirports = expandLocationCodes(req.origin);
-  const destAirports = expandLocationCodes(req.destination);
+  const originAirports = normalizeAirportCodes(req.origin);
+  const destAirports = normalizeAirportCodes(req.destination);
 
   const flightSliceParts: Buffer[] = [fieldString(2, req.departureDate)];
 

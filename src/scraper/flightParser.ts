@@ -1,5 +1,5 @@
 import type { Page } from 'playwright';
-import type { RouteItinerary, ScrapeRequest } from '@/types';
+import type { RouteItinerary, RouteSegment, ScrapeRequest } from '@/types';
 import {
   cleanFlightNumber,
   normalizeAirlineCode,
@@ -27,12 +27,10 @@ function parseDurationTextToMinutes(text: string): number {
   return hours * 60 + mins;
 }
 
-function formatDateTuple(
+function extractIsoDateFromTuple(
   dateTuple: unknown,
-  timeTuple: unknown,
   fallbackDate: string
-): string {
-  let datePart = fallbackDate;
+): { date: string; explicit: boolean } {
   if (
     Array.isArray(dateTuple) &&
     dateTuple.length >= 3 &&
@@ -40,17 +38,190 @@ function formatDateTuple(
     typeof dateTuple[1] === 'number' &&
     typeof dateTuple[2] === 'number'
   ) {
-    datePart = `${dateTuple[0]}-${pad2(dateTuple[1])}-${pad2(dateTuple[2])}`;
+    return {
+      date: `${dateTuple[0]}-${pad2(dateTuple[1])}-${pad2(dateTuple[2])}`,
+      explicit: true,
+    };
   }
+  return { date: fallbackDate, explicit: false };
+}
 
+function extractClockTuple(timeTuple: unknown): { hour: number; minute: number } {
   let hour = 0;
   let minute = 0;
   if (Array.isArray(timeTuple)) {
     if (typeof timeTuple[0] === 'number') hour = timeTuple[0];
     if (typeof timeTuple[1] === 'number') minute = timeTuple[1];
   }
+  return { hour, minute };
+}
 
-  return `${datePart} ${pad2(hour)}:${pad2(minute)}`;
+function addDaysToIsoDate(isoDate: string, days: number): string {
+  const parts = isoDate.split('-').map(Number);
+  if (parts.length !== 3 || parts.some((n) => !Number.isFinite(n))) {
+    return isoDate;
+  }
+  const dt = new Date(Date.UTC(parts[0], parts[1] - 1, parts[2] + days));
+  return `${dt.getUTCFullYear()}-${pad2(dt.getUTCMonth() + 1)}-${pad2(dt.getUTCDate())}`;
+}
+
+function formatDateTuple(
+  dateTuple: unknown,
+  timeTuple: unknown,
+  fallbackDate: string
+): string {
+  const { date } = extractIsoDateFromTuple(dateTuple, fallbackDate);
+  const { hour, minute } = extractClockTuple(timeTuple);
+  return `${date} ${pad2(hour)}:${pad2(minute)}`;
+}
+
+function parseTimestampToUtcMs(timestamp: string): number | null {
+  const match = timestamp.match(/^(\d{4})-(\d{2})-(\d{2})\s+(\d{2}):(\d{2})$/);
+  if (!match) return null;
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  const hour = Number(match[4]);
+  const minute = Number(match[5]);
+  const ms = Date.UTC(year, month - 1, day, hour, minute);
+  return Number.isFinite(ms) ? ms : null;
+}
+
+function extractRouteSegments(
+  rawLegs: unknown[],
+  defaultAirline: string,
+  fallbackOrigin: string,
+  fallbackDestination: string,
+  initialDate: string
+): RouteSegment[] {
+  const segments: RouteSegment[] = [];
+  let rollingDate = initialDate;
+
+  for (let i = 0; i < rawLegs.length; i++) {
+    const leg = rawLegs[i];
+    if (!Array.isArray(leg)) continue;
+
+    const prevSeg = segments[segments.length - 1];
+    const segOrigin =
+      typeof leg[3] === 'string' && /^[A-Z]{3}$/.test(leg[3])
+        ? leg[3]
+        : prevSeg?.destination ?? fallbackOrigin;
+
+    const segDestination =
+      typeof leg[6] === 'string' && /^[A-Z]{3}$/.test(leg[6])
+        ? leg[6]
+        : i === rawLegs.length - 1
+          ? fallbackDestination
+          : '';
+
+    let rawSegAirline = defaultAirline;
+    let rawSegFlightNum = '';
+    if (Array.isArray(leg[22])) {
+      const flightMeta = leg[22];
+      if (typeof flightMeta[0] === 'string' && flightMeta[0].trim()) {
+        rawSegAirline = flightMeta[0];
+      }
+      if (
+        typeof flightMeta[1] === 'string' ||
+        typeof flightMeta[1] === 'number'
+      ) {
+        rawSegFlightNum = String(flightMeta[1]);
+      }
+    }
+
+    const segAirline = normalizeAirlineCode(rawSegAirline || defaultAirline || 'XX');
+    const segFlightNumber = cleanFlightNumber(rawSegFlightNum, segAirline);
+
+    const depDateInfo = extractIsoDateFromTuple(leg[20], rollingDate);
+    const depClock = extractClockTuple(leg[8]);
+    if (depDateInfo.explicit) {
+      rollingDate = depDateInfo.date;
+    } else if (prevSeg) {
+      const prevArrClockPart = prevSeg.arrivalTime.split(' ')[1];
+      if (prevArrClockPart) {
+        const [prevH, prevM] = prevArrClockPart.split(':').map(Number);
+        if (
+          Number.isFinite(prevH) &&
+          Number.isFinite(prevM) &&
+          depClock.hour * 60 + depClock.minute < prevH * 60 + prevM
+        ) {
+          rollingDate = addDaysToIsoDate(rollingDate, 1);
+        }
+      }
+    }
+    const depDate = rollingDate;
+    const departureTime = `${depDate} ${pad2(depClock.hour)}:${pad2(depClock.minute)}`;
+
+    const segDurationMinutes =
+      typeof leg[11] === 'number' && leg[11] > 0 ? Math.round(leg[11]) : 0;
+
+    const arrDateInfo = extractIsoDateFromTuple(leg[21], depDate);
+    const arrClock = extractClockTuple(leg[10]);
+    if (arrDateInfo.explicit) {
+      rollingDate = arrDateInfo.date;
+    } else {
+      const depMinutesOfDay = depClock.hour * 60 + depClock.minute;
+      const arrMinutesOfDay = arrClock.hour * 60 + arrClock.minute;
+      if (segDurationMinutes > 0) {
+        const dayOffset = Math.floor((depMinutesOfDay + segDurationMinutes) / 1440);
+        if (dayOffset > 0) {
+          rollingDate = addDaysToIsoDate(depDate, dayOffset);
+        } else if (arrMinutesOfDay < depMinutesOfDay) {
+          rollingDate = addDaysToIsoDate(depDate, 1);
+        }
+      } else if (arrMinutesOfDay < depMinutesOfDay) {
+        rollingDate = addDaysToIsoDate(depDate, 1);
+      }
+    }
+    const arrivalTime = `${rollingDate} ${pad2(arrClock.hour)}:${pad2(arrClock.minute)}`;
+
+    segments.push({
+      airline: segAirline,
+      flightNumber: segFlightNumber,
+      origin: segOrigin,
+      destination: segDestination,
+      departureTime,
+      arrivalTime,
+      durationMinutes: segDurationMinutes,
+    });
+  }
+
+  return segments;
+}
+
+function calculateMaxLayoverMinutes(
+  segments: RouteSegment[],
+  stops: number,
+  totalDurationMinutes: number
+): number | null {
+  if (stops === 0 || segments.length < 2) {
+    return null;
+  }
+
+  let maxGap: number | null = null;
+  for (let i = 0; i < segments.length - 1; i++) {
+    const prevArrMs = parseTimestampToUtcMs(segments[i].arrivalTime);
+    const nextDepMs = parseTimestampToUtcMs(segments[i + 1].departureTime);
+    if (prevArrMs !== null && nextDepMs !== null) {
+      const gapMinutes = Math.round((nextDepMs - prevArrMs) / 60_000);
+      if (gapMinutes >= 0 && (maxGap === null || gapMinutes > maxGap)) {
+        maxGap = gapMinutes;
+      }
+    }
+  }
+
+  if (maxGap !== null) {
+    return maxGap;
+  }
+
+  if (stops === 1 && segments.length === 2 && totalDurationMinutes > 0) {
+    const flyingMinutes = segments[0].durationMinutes + segments[1].durationMinutes;
+    if (flyingMinutes > 0 && totalDurationMinutes >= flyingMinutes) {
+      return totalDurationMinutes - flyingMinutes;
+    }
+  }
+
+  return null;
 }
 
 function extractBalancedJson(source: string, startIndex: number): string | null {
@@ -193,6 +364,18 @@ function tryParseFlightGroupArray(
       const durationMinutes =
         typeof summary[9] === 'number' && summary[9] > 0 ? summary[9] : 0;
 
+      const summaryStartDate = extractIsoDateFromTuple(
+        summary[4],
+        fallbackDate
+      ).date;
+      const routeSegments = extractRouteSegments(
+        legs,
+        airline,
+        origin,
+        destination,
+        summaryStartDate
+      );
+
       const stops = Math.max(0, legs.length > 0 ? legs.length - 1 : 0);
       const layoverAirports: string[] = [];
       if (legs.length > 1) {
@@ -203,6 +386,12 @@ function tryParseFlightGroupArray(
           }
         }
       }
+
+      const maxLayoverMinutes = calculateMaxLayoverMinutes(
+        routeSegments,
+        stops,
+        durationMinutes
+      );
 
       results.push({
         airline,
@@ -218,6 +407,8 @@ function tryParseFlightGroupArray(
         stops,
         isNonstop: stops === 0,
         layoverAirports,
+        maxLayoverMinutes,
+        ...(routeSegments.length > 0 ? { legs: routeSegments } : {}),
       });
       return;
     }
@@ -302,9 +493,12 @@ export async function parseItinerariesFromDom(
     if (!Number.isFinite(price) || price <= 0) continue;
 
     const airportPairMatch = combined.match(/\b([A-Z]{3})\s*[–—-]\s*([A-Z]{3})\b/);
-    const origin = airportPairMatch?.[1] ?? req.origin.split(',')[0] ?? req.origin;
-    const destination =
-      airportPairMatch?.[2] ?? req.destination.split(',')[0] ?? req.destination;
+    const fallbackOrigin = Array.isArray(req.origin) ? req.origin[0] : req.origin;
+    const fallbackDestination = Array.isArray(req.destination)
+      ? req.destination[0]
+      : req.destination;
+    const origin = airportPairMatch?.[1] ?? fallbackOrigin;
+    const destination = airportPairMatch?.[2] ?? fallbackDestination;
 
     const durationMatch = combined.match(/\b(\d+\s*hr?\s*(?:\d+\s*m(?:in)?)?)\b/i);
     const durationText = durationMatch?.[1] ?? '0m';
@@ -356,6 +550,7 @@ export async function parseItinerariesFromDom(
       stops,
       isNonstop: stops === 0,
       layoverAirports: [],
+      maxLayoverMinutes: null,
     });
   }
 
@@ -408,15 +603,35 @@ export function applyScrapeFilters(
         }
       }
 
-      if (req.airline && item.airline !== req.airline) {
-        return false;
-      }
-
       if (req.flightNumber) {
-        const targetNum = cleanFlightNumber(req.flightNumber, req.airline);
-        if (targetNum && item.flightNumber && item.flightNumber !== targetNum) {
-          return false;
+        const trimmedFlight = req.flightNumber.trim().toUpperCase().replace(/\s+/g, '');
+        const embeddedCarrierMatch = trimmedFlight.match(
+          /^(?=[A-Z0-9]*[A-Z])([A-Z0-9]{2})\d+[A-Z]?$/
+        );
+        const targetCarrier = req.airline ?? embeddedCarrierMatch?.[1];
+        const targetNum = cleanFlightNumber(req.flightNumber, targetCarrier);
+
+        if (targetNum) {
+          if (item.legs && item.legs.length > 0) {
+            const matchesAnyLeg = item.legs.some(
+              (leg) =>
+                leg.flightNumber === targetNum &&
+                (!targetCarrier || leg.airline === targetCarrier)
+            );
+            if (!matchesAnyLeg) {
+              return false;
+            }
+          } else {
+            if (targetCarrier && item.airline !== targetCarrier) {
+              return false;
+            }
+            if (!item.flightNumber || item.flightNumber !== targetNum) {
+              return false;
+            }
+          }
         }
+      } else if (req.airline && item.airline !== req.airline) {
+        return false;
       }
 
       return true;

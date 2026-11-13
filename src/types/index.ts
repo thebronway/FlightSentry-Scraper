@@ -3,10 +3,9 @@ export type CabinClass = 'economy' | 'premium_economy' | 'business' | 'first';
 export type FareTier = 'Basic' | 'Standard';
 
 export type ScrapeStatus = 'Success' | 'SoldOut' | 'RateLimited' | 'Error';
-
 export interface ScrapeRequest {
-  origin: string;
-  destination: string;
+  origin: string | string[];
+  destination: string | string[];
   departureDate: string;
   cabinClass: CabinClass;
   fareTier: FareTier;
@@ -17,6 +16,16 @@ export interface ScrapeRequest {
   airline?: string;
   flightNumber?: string;
   includeRaw?: boolean;
+}
+
+export interface RouteSegment {
+  airline: string;
+  flightNumber: string;
+  origin: string;
+  destination: string;
+  departureTime: string;
+  arrivalTime: string;
+  durationMinutes: number;
 }
 
 export interface RouteItinerary {
@@ -33,6 +42,8 @@ export interface RouteItinerary {
   stops: number;
   isNonstop: boolean;
   layoverAirports: string[];
+  maxLayoverMinutes?: number | null;
+  legs?: RouteSegment[];
 }
 
 export interface ScrapeMeta {

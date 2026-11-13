@@ -1,7 +1,7 @@
 # FlightSentry-Scraper
 
 ![License](https://img.shields.io/badge/license-MIT-blue.svg)
-![Version](https://img.shields.io/badge/version-v0.1.0-blue.svg)
+![Version](https://img.shields.io/badge/version-v0.1.5-blue.svg)
 ![Docker](https://img.shields.io/docker/pulls/thebronway/flightsentry-scraper?logo=docker)
 
 ### A self-hosted headless Chromium scraper microservice for FlightSentry.
