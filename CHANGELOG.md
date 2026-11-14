@@ -1,9 +1,15 @@
 # FlightSentry-Scraper Changelog
 
-*Last updated: 2026-11-13*  
-*Current Version: v0.4.0*
+*Last updated: 2026-11-14*  
+*Current Version: v0.4.1*
 
 ## Changelog
+
+### Release v0.4.1
+- Hardened `normalizeAirlineCode` to block prose fallbacks (e.g. `"Unknown"` to `"UN"`, `"IATA..."` to `"IA"`) that surfaced as low-priced phantom flights.
+- Added `itineraryValidator.ts` to strictly enforce requested route/date matching, operating segment completeness, and valid IATA carrier codes prior to itinerary extraction.
+- Scoped `parseItinerariesFromDom` to exclude UI banners, price-insight teasers, and skeleton cards.
+- Excluded non-shopping RPCs (calendar graphs, price insights) from `otherDataPayloads` interception.
 
 ### Release v0.4.0
 - Added protobuf query token inspection (`shoppingTokenInspector.ts`) to ignore pre-filter `GetShoppingResults` responses and wait for post-filter results when `cabinClass` is `economy` and `fareTier` is `Standard`.

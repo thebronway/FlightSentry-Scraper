@@ -23,7 +23,7 @@ export function Navbar({
         <div className="flex items-center space-x-3 text-white">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
-            src="/logo-filled-sm.webp"
+            src="/FlightSentry-Scaper-icon-sm.png"
             alt="FlightSentry Logo"
             className="h-[42px] w-auto object-contain rounded"
           />

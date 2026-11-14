@@ -3,8 +3,10 @@ import type { RouteItinerary, RouteSegment, ScrapeRequest } from '@/types';
 import {
   cleanFlightNumber,
   normalizeAirlineCode,
+  resolveAirlineCodeFromName,
   resolveAirlineName,
 } from '@/utils/airline';
+import { filterValidItineraries } from './itineraryValidator';
 
 function pad2(n: number): string {
   return String(n).padStart(2, '0');
@@ -323,7 +325,20 @@ function tryParseFlightGroupArray(
       price = priceBlock[1];
     }
 
-    if (origin && destination && price !== null && price > 0) {
+    const summaryDateInfo = extractIsoDateFromTuple(summary[4], fallbackDate);
+    const firstLegDateInfo = extractIsoDateFromTuple(firstLeg?.[20], fallbackDate);
+    const hasExplicitDepDate =
+      summaryDateInfo.explicit || firstLegDateInfo.explicit;
+
+    if (
+      origin &&
+      destination &&
+      price !== null &&
+      price > 0 &&
+      legs.length > 0 &&
+      firstLeg !== null &&
+      hasExplicitDepDate
+    ) {
       const rawCarrierNames = Array.isArray(summary[1]) ? summary[1] : [];
 
       let rawAirline =
@@ -346,28 +361,32 @@ function tryParseFlightGroupArray(
         if (typeof flightMeta[3] === 'string') rawAirlineName = flightMeta[3];
       }
 
-      const airline = normalizeAirlineCode(rawAirline || rawAirlineName || 'XX');
+      const airline = rawAirline
+        ? normalizeAirlineCode(rawAirline)
+        : rawAirlineName
+          ? resolveAirlineCodeFromName(rawAirlineName)
+          : 'XX';
       const airlineName = resolveAirlineName(airline, rawAirlineName);
       const flightNumber = cleanFlightNumber(rawFlightNum, airline);
 
+      const effectiveStartDate = summaryDateInfo.explicit
+        ? summaryDateInfo.date
+        : firstLegDateInfo.date;
       const departureTime = formatDateTuple(
         summary[4],
         summary[5],
-        fallbackDate
+        effectiveStartDate
       );
       const arrivalTime = formatDateTuple(
         summary[7],
         summary[8],
-        fallbackDate
+        effectiveStartDate
       );
 
       const durationMinutes =
         typeof summary[9] === 'number' && summary[9] > 0 ? summary[9] : 0;
 
-      const summaryStartDate = extractIsoDateFromTuple(
-        summary[4],
-        fallbackDate
-      ).date;
+      const summaryStartDate = effectiveStartDate;
       const routeSegments = extractRouteSegments(
         legs,
         airline,
@@ -423,7 +442,7 @@ function tryParseFlightGroupArray(
 
 export function parseStructuredPayload(
   rawPayloads: string[],
-  fallbackDate: string
+  req: ScrapeRequest
 ): RouteItinerary[] {
   const parsedItineraries: RouteItinerary[] = [];
 
@@ -433,7 +452,7 @@ export function parseStructuredPayload(
 
     try {
       const json = JSON.parse(cleaned);
-      tryParseFlightGroupArray(json, fallbackDate, parsedItineraries);
+      tryParseFlightGroupArray(json, req.departureDate, parsedItineraries);
     } catch {
       // Handle Google batchexecute multi-line envelopes
       const lines = cleaned.split('\n');
@@ -448,7 +467,7 @@ export function parseStructuredPayload(
                 const innerJson = JSON.parse(entry[2]);
                 tryParseFlightGroupArray(
                   innerJson,
-                  fallbackDate,
+                  req.departureDate,
                   parsedItineraries
                 );
               }
@@ -461,7 +480,7 @@ export function parseStructuredPayload(
     }
   }
 
-  return deduplicateItineraries(parsedItineraries);
+  return filterValidItineraries(deduplicateItineraries(parsedItineraries), req);
 }
 
 export async function parseItinerariesFromDom(
@@ -470,8 +489,8 @@ export async function parseItinerariesFromDom(
 ): Promise<RouteItinerary[]> {
   const domCards = await page.evaluate(() => {
     const items = Array.from(
-      document.querySelectorAll('ul.Rk10dc > li, li.pIav2d')
-    );
+      document.querySelectorAll('div[role="main"] ul.Rk10dc > li, ul.Rk10dc > li.pIav2d')
+    ).filter((el) => !el.closest('aside, [role="complementary"], [role="dialog"]'));
 
     return items
       .map((el) => {
@@ -519,22 +538,24 @@ export async function parseItinerariesFromDom(
       .map((l) => l.trim())
       .filter(Boolean);
 
-    const candidateAirline =
-      lines.find(
-        (l) =>
-          !/^\d/.test(l) &&
-          !/\$|€|£/.test(l) &&
-          !/nonstop|stop|hr|min|kg|co2|emissions/i.test(l) &&
-          l.length >= 2 &&
-          l.length <= 40
-      ) ?? 'Unknown';
+    const candidateAirline = lines.find(
+      (l) =>
+        !/^\d/.test(l) &&
+        !/\$|€|£/.test(l) &&
+        !/nonstop|stop|hr|min|kg|co2|emissions|from\s+\$|cheapest|price|avoid/i.test(l) &&
+        l.length >= 2 &&
+        l.length <= 60
+    );
+    if (!candidateAirline) continue;
 
-    const airline = normalizeAirlineCode(candidateAirline);
+    const airline = resolveAirlineCodeFromName(candidateAirline);
+    if (airline === 'XX') continue;
     const airlineName = resolveAirlineName(airline, candidateAirline);
 
     const timeMatches = combined.match(/\b(\d{1,2}:\d{2}\s*(?:AM|PM)?)\b/gi) ?? [];
-    const depTime = timeMatches[0] ?? '00:00';
-    const arrTime = timeMatches[1] ?? '00:00';
+    if (timeMatches.length < 2) continue;
+    const depTime = timeMatches[0];
+    const arrTime = timeMatches[1];
 
     results.push({
       airline,
@@ -554,7 +575,7 @@ export async function parseItinerariesFromDom(
     });
   }
 
-  return deduplicateItineraries(results);
+  return filterValidItineraries(deduplicateItineraries(results), req);
 }
 
 function deduplicateItineraries(items: RouteItinerary[]): RouteItinerary[] {
@@ -585,7 +606,7 @@ export function applyScrapeFilters(
   itineraries: RouteItinerary[],
   req: ScrapeRequest
 ): RouteItinerary[] {
-  return itineraries
+  return filterValidItineraries(itineraries, req)
     .filter((item) => {
       if (req.maxStops !== undefined && item.stops > req.maxStops) {
         return false;

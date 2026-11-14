@@ -1,7 +1,7 @@
 # FlightSentry-Scraper Roadmap
 
-*Last updated: 2026-11-13*  
-*Current Version: v0.4.0*
+*Last updated: 2026-11-14*  
+*Current Version: v0.4.1*
 
 ## Overview
 This document tracks planned improvements, enhancements, and technical debt for FlightSentry-Scraper

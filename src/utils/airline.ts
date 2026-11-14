@@ -68,6 +68,60 @@ const AIRLINE_NAME_TO_IATA: Record<string, string> = {
   'breeze airways': 'MX',
   avelo: 'XP',
   'avelo airlines': 'XP',
+  'air india': 'AI',
+  'air china': 'CA',
+  'china eastern': 'MU',
+  'china eastern airlines': 'MU',
+  'china southern': 'CZ',
+  'china southern airlines': 'CZ',
+  'thai airways': 'TG',
+  'vietnam airlines': 'VN',
+  'philippine airlines': 'PR',
+  'garuda indonesia': 'GA',
+  'malaysia airlines': 'MH',
+  'el al': 'LY',
+  egyptair: 'MS',
+  'ethiopian airlines': 'ET',
+  'royal air maroc': 'AT',
+  'kenya airways': 'KQ',
+  'south african airways': 'SA',
+  gol: 'G3',
+  azul: 'AD',
+  volaris: 'Y4',
+  'viva aerobus': 'VB',
+  'flair airlines': 'F8',
+  'air transat': 'TS',
+  sunwing: 'WG',
+  condor: 'DE',
+  eurowings: 'EW',
+  vueling: 'VY',
+  ryanair: 'FR',
+  easyjet: 'U2',
+  'wizz air': 'W6',
+  norwegian: 'DY',
+  'lot polish airlines': 'LO',
+  'aegean airlines': 'A3',
+  airbaltic: 'BT',
+  zipair: 'ZG',
+  starlux: 'JX',
+  scoot: 'TR',
+  'cebu pacific': '5J',
+  airasia: 'AK',
+  indigo: '6E',
+  jetstar: 'JQ',
+  'virgin australia': 'VA',
+  'fiji airways': 'FJ',
+  'air tahiti nui': 'TN',
+  'french bee': 'BF',
+  corsair: 'SS',
+  transavia: 'HV',
+  'edelweiss air': 'WK',
+  'discover airlines': '4Y',
+  'silver airways': '3M',
+  'cape air': '9K',
+  'contour airlines': 'LF',
+  'southern airways express': '9X',
+  jsx: 'XE',
 };
 
 const IATA_TO_AIRLINE_NAME: Record<string, string> = {
@@ -122,29 +176,121 @@ const IATA_TO_AIRLINE_NAME: Record<string, string> = {
   PD: 'Porter Airlines',
   MX: 'Breeze Airways',
   XP: 'Avelo Airlines',
+  AI: 'Air India',
+  CA: 'Air China',
+  MU: 'China Eastern Airlines',
+  CZ: 'China Southern Airlines',
+  TG: 'Thai Airways',
+  VN: 'Vietnam Airlines',
+  PR: 'Philippine Airlines',
+  GA: 'Garuda Indonesia',
+  MH: 'Malaysia Airlines',
+  LY: 'EL AL',
+  MS: 'EgyptAir',
+  ET: 'Ethiopian Airlines',
+  AT: 'Royal Air Maroc',
+  KQ: 'Kenya Airways',
+  SA: 'South African Airways',
+  G3: 'GOL',
+  AD: 'Azul',
+  Y4: 'Volaris',
+  VB: 'Viva Aerobus',
+  F8: 'Flair Airlines',
+  TS: 'Air Transat',
+  WG: 'Sunwing Airlines',
+  DE: 'Condor',
+  EW: 'Eurowings',
+  VY: 'Vueling',
+  FR: 'Ryanair',
+  U2: 'easyJet',
+  W6: 'Wizz Air',
+  DY: 'Norwegian',
+  LO: 'LOT Polish Airlines',
+  A3: 'Aegean Airlines',
+  BT: 'airBaltic',
+  ZG: 'ZIPAIR',
+  JX: 'STARLUX Airlines',
+  TR: 'Scoot',
+  '5J': 'Cebu Pacific',
+  AK: 'AirAsia',
+  '6E': 'IndiGo',
+  JQ: 'Jetstar',
+  VA: 'Virgin Australia',
+  FJ: 'Fiji Airways',
+  TN: 'Air Tahiti Nui',
+  BF: 'French bee',
+  SS: 'Corsair',
+  HV: 'Transavia',
+  WK: 'Edelweiss Air',
+  '4Y': 'Discover Airlines',
+  '3M': 'Silver Airways',
+  '9K': 'Cape Air',
+  LF: 'Contour Airlines',
+  '9X': 'Southern Airways Express',
+  XE: 'JSX',
 };
+
+const IATA_CARRIER_CODE_REGEX = /^(?=[A-Z0-9]*[A-Z])[A-Z0-9]{2}$/;
+const NON_OPERATING_CARRIER_CODES = new Set(['XX', 'UN']);
+
+export function isValidOperatingCarrierCode(code: string): boolean {
+  const upper = code.trim().toUpperCase();
+  return (
+    IATA_CARRIER_CODE_REGEX.test(upper) &&
+    !NON_OPERATING_CARRIER_CODES.has(upper)
+  );
+}
 
 export function normalizeAirlineCode(rawCodeOrName: string): string {
   const trimmed = rawCodeOrName.trim();
   if (!trimmed) return 'XX';
-
-  const upper = trimmed.toUpperCase();
-  if (/^[A-Z0-9]{2}$/.test(upper)) {
-    return upper;
-  }
-
-  // Handle combined strings like "UA 1492" or "United Airlines"
-  const prefixMatch = upper.match(/^([A-Z0-9]{2})\s*\d+$/);
-  if (prefixMatch?.[1]) {
-    return prefixMatch[1];
-  }
 
   const mapped = AIRLINE_NAME_TO_IATA[trimmed.toLowerCase()];
   if (mapped) {
     return mapped;
   }
 
-  return upper.slice(0, 2);
+  const upper = trimmed.toUpperCase();
+  if (IATA_CARRIER_CODE_REGEX.test(upper)) {
+    return NON_OPERATING_CARRIER_CODES.has(upper) ? 'XX' : upper;
+  }
+
+  // Handle combined designators like "UA 1492"
+  const prefixMatch = upper.match(
+    /^((?=[A-Z0-9]*[A-Z])[A-Z0-9]{2})\s*\d+[A-Z]?$/
+  );
+  if (prefixMatch?.[1]) {
+    return NON_OPERATING_CARRIER_CODES.has(prefixMatch[1])
+      ? 'XX'
+      : prefixMatch[1];
+  }
+
+  return 'XX';
+}
+
+export function resolveAirlineCodeFromName(rawName: string): string {
+  const trimmed = rawName.trim();
+  if (!trimmed) return 'XX';
+
+  const direct = AIRLINE_NAME_TO_IATA[trimmed.toLowerCase()];
+  if (direct) {
+    return direct;
+  }
+
+  // Handle multi-carrier DOM labels such as "Delta, Virgin Atlantic" or "United • Lufthansa"
+  const parts = trimmed
+    .split(/[,•·/|]+/)
+    .map((part) => part.trim().toLowerCase())
+    .filter(Boolean);
+
+  for (const part of parts) {
+    const mapped = AIRLINE_NAME_TO_IATA[part];
+    if (mapped) {
+      return mapped;
+    }
+  }
+
+  return 'XX';
 }
 
 export function resolveAirlineName(

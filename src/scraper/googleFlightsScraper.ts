@@ -150,6 +150,15 @@ async function performBrowserScrape(
           return;
         }
 
+        // Ignore non-itinerary background RPCs (calendar price graphs, price insights, explore teasers)
+        if (
+          /GetCalendar|PriceInsights|Explore|Autocomplete|Location/i.test(
+            resUrl
+          )
+        ) {
+          return;
+        }
+
         const bodyText = await res.text();
         if (!bodyText || bodyText.length <= 100) {
           return;
@@ -245,9 +254,16 @@ async function performBrowserScrape(
           structuredCandidates = [latestFiltered];
           rawDiagnosticPayloads = [latestFiltered];
         } else if (sawUnfilteredShopping) {
-          // Pre-filter GetShoppingResults fired, but post-filter response did not arrive in time;
-          // do not parse pre-filter XHR/SSR payloads that would leak Basic Economy fares.
-          rawDiagnosticPayloads = [...allShoppingPayloads, ...otherDataPayloads];
+          // Pre-filter GetShoppingResults fired, but post-filter XHR did not arrive;
+          // fall back to SSR ds:1 (which already carries the tfs excludeBasicEconomy flag) if available.
+          if (ds1Payload) {
+            structuredCandidates = [ds1Payload];
+          }
+          rawDiagnosticPayloads = [
+            ...(ds1Payload ? [ds1Payload] : []),
+            ...allShoppingPayloads,
+            ...otherDataPayloads,
+          ];
         } else {
           if (ds1Payload) {
             structuredCandidates.push(ds1Payload);
@@ -270,10 +286,7 @@ async function performBrowserScrape(
         }
       }
 
-      let extracted = parseStructuredPayload(
-        structuredCandidates,
-        req.departureDate
-      );
+      let extracted = parseStructuredPayload(structuredCandidates, req);
 
       if (
         extracted.length === 0 &&
